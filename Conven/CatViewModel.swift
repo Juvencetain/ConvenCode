@@ -58,11 +58,11 @@ class CatViewModel: ObservableObject {
         guard let lastDate = userDefaults.object(forKey: Keys.lastSavedDate) as? Date else { return }
         
         let timePassed = Date().timeIntervalSince(lastDate)
-        let minutesPassed = Int(timePassed / 60) // 离线多少分钟
+        let tenMinutesPassed = Int(timePassed / 600) // 离线多少个 10 分钟
         
-        if minutesPassed > 0 {
-            print("离线了 \(minutesPassed) 分钟")
-            let totalPenalty = (1...minutesPassed).reduce(0) { acc, _ in
+        if tenMinutesPassed > 0 {
+            print("离线了 \(tenMinutesPassed) 个 10 分钟")
+            let totalPenalty = (1...tenMinutesPassed).reduce(0) { acc, _ in
                 acc + Int.random(in: 1...5)
             }
             DispatchQueue.main.async {
@@ -146,7 +146,7 @@ class CatViewModel: ObservableObject {
     // 每分钟执行一次
     private func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
             self.reduceStats()
         }
     }
@@ -169,7 +169,7 @@ class CatViewModel: ObservableObject {
             self.notifyIfLow("清洁", value: self.cleanliness)
             
             self.checkLiveness()
-            print("每分钟状态减少 \(Int(penalty1))、\(Int(penalty2))、\(Int(penalty3)) 点")
+            print("每10分钟状态减少 \(Int(penalty1))、\(Int(penalty2))、\(Int(penalty3)) 点")
         }
     }
     
