@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="22" height="22" aria-label="Cute detailed cat icon">
+  <!-- 猫头外轮廓 -->
+  <path d="M20 10 L28 2 L34 12 L40 2 L48 10 
+           C58 16 62 30 58 42 
+           C54 54 44 62 32 62 
+           C20 62 10 54 6 42 
+           C2 30 6 16 20 10Z"
+        fill="currentColor"/>
+
+  <!-- 耳朵内侧 -->
+  <path d="M21 10 L28 2 L27 14 Z" fill="white" opacity="0.4"/>
+  <path d="M39 2 L47 10 L37 14 Z" fill="white" opacity="0.4"/>
+
+  <!-- 眼睛白底 -->
+  <ellipse cx="23" cy="32" rx="6" ry="7" fill="white"/>
+  <ellipse cx="41" cy="32" rx="6" ry="7" fill="white"/>
+
+  <!-- 瞳孔 -->
+  <circle cx="23" cy="32" r="3" fill="currentColor"/>
+  <circle cx="41" cy="32" r="3" fill="currentColor"/>
+
+  <!-- 眼睛高光 -->
+  <circle cx="22" cy="30" r="1.2" fill="white"/>
+  <circle cx="40" cy="30" r="1.2" fill="white"/>
+
+  <!-- 鼻子 -->
+  <path d="M30 38 L34 38 L32 42 Z" fill="white"/>
+
+  <!-- 嘴巴 -->
+  <path d="M32 42 Q29 46 26 44" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M32 42 Q35 46 38 44" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- 小胡须 -->
+  <path d="M18 36 h-6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <path d="M18 40 h-6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <path d="M46 36 h6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <path d="M46 40 h6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+</svg>
