@@ -105,6 +105,7 @@ class CatViewModel: ObservableObject {
             print("每分钟状态减少 \(Int(penalty1))、\(Int(penalty2))、\(Int(penalty3)) 点")
         }
     }
+    
     func checkLiveness() {
         let zeroStatsCount = [mood, hunger, cleanliness].filter { $0 == 0 }.count
         if zeroStatsCount >= 2 {
