@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import UserNotifications
 
 class CatViewModel: ObservableObject {
     
@@ -14,7 +15,7 @@ class CatViewModel: ObservableObject {
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
-
+    
     // 用于存储数据的 Key
     private enum Keys {
         static let mood = "cat_mood"
@@ -23,7 +24,7 @@ class CatViewModel: ObservableObject {
         static let isAlive = "cat_isAlive"
         static let lastSavedDate = "cat_lastSavedDate"
     }
-
+    
     init() {
         self.mood = userDefaults.object(forKey: Keys.mood) as? Double ?? 100.0
         self.hunger = userDefaults.object(forKey: Keys.hunger) as? Double ?? 100.0
@@ -32,7 +33,7 @@ class CatViewModel: ObservableObject {
         
         applyOfflinePenalty()
         checkLiveness()
-
+        
         if isAlive {
             startTimer()
         }
@@ -60,6 +61,29 @@ class CatViewModel: ObservableObject {
         }
     }
     
+    private func notifyIfLow(_ name: String, value: Double) {
+        guard value < 20 else { return }  // 阈值 < 20 时才通知
+        
+        let content = UNMutableNotificationContent()
+        content.title = "小猫提醒"
+        content.body = "\(name) 太低啦！快去照顾一下它吧 🐱"
+        content.sound = .default
+        
+        // 立即触发
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ 通知发送失败: \(error)")
+            }
+        }
+    }
+    
+    
     // 订阅状态变化以自动保存
     private func setupSubscribers() {
         Publishers.CombineLatest3($mood, $hunger, $cleanliness)
@@ -81,7 +105,7 @@ class CatViewModel: ObservableObject {
         userDefaults.set(isAlive, forKey: Keys.isAlive)
         userDefaults.set(Date(), forKey: Keys.lastSavedDate)
     }
-
+    
     // 每分钟执行一次
     private func startTimer() {
         timer?.invalidate()
@@ -101,6 +125,12 @@ class CatViewModel: ObservableObject {
             self.mood = max(0, self.mood - penalty1)
             self.hunger = max(0, self.hunger - penalty2)
             self.cleanliness = max(0, self.cleanliness - penalty3)
+            
+            // 检查是否需要通知
+            self.notifyIfLow("心情", value: self.mood)
+            self.notifyIfLow("饥饿", value: self.hunger)
+            self.notifyIfLow("清洁", value: self.cleanliness)
+            
             self.checkLiveness()
             print("每分钟状态减少 \(Int(penalty1))、\(Int(penalty2))、\(Int(penalty3)) 点")
         }
