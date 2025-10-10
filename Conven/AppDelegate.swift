@@ -97,6 +97,7 @@ class GifAnimator {
         timer = nil
     }
 
+    
     private func nextFrame() {
         guard !frames.isEmpty else { return }
         frameIndex = (frameIndex + 1) % frames.count
