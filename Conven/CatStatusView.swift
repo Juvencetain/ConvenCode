@@ -17,6 +17,7 @@ struct CatStatusView: View {
             if viewModel.isAlive {
                 Text("小猫状态")
                     .font(.headline)
+                Text("存活：" + String(viewModel.getLiveDays()) + " 天")
                 
                 // 使用 VStack 和 Label 来对齐显示状态
                 VStack(alignment: .leading, spacing: 10) {

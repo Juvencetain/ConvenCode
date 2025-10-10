@@ -10,6 +10,7 @@ class CatViewModel: ObservableObject {
     @Published var hunger: Double
     @Published var cleanliness: Double
     @Published var isAlive: Bool
+    @Published var liveDays: String
     
     // MARK: - Private Properties
     private var timer: Timer?
@@ -23,13 +24,24 @@ class CatViewModel: ObservableObject {
         static let cleanliness = "cat_cleanliness"
         static let isAlive = "cat_isAlive"
         static let lastSavedDate = "cat_lastSavedDate"
+        static let liveDays = "cat_liveDays"
     }
     
     init() {
+        
         self.mood = userDefaults.object(forKey: Keys.mood) as? Double ?? 100.0
         self.hunger = userDefaults.object(forKey: Keys.hunger) as? Double ?? 100.0
         self.cleanliness = userDefaults.object(forKey: Keys.cleanliness) as? Double ?? 100.0
         self.isAlive = userDefaults.object(forKey: Keys.isAlive) as? Bool ?? true
+        
+        // 尝试从 UserDefaults 获取 liveDays
+        if let savedLiveDays = userDefaults.string(forKey: Keys.liveDays) {
+            // 如果有值，直接使用
+            self.liveDays = savedLiveDays
+        } else {
+            // 如果为空，保存当前时间，并重新赋值
+            self.liveDays = Self.saveStartTime(userDefaults: userDefaults)
+        }
         
         applyOfflinePenalty()
         checkLiveness()
@@ -106,6 +118,31 @@ class CatViewModel: ObservableObject {
         userDefaults.set(Date(), forKey: Keys.lastSavedDate)
     }
     
+    //保存开始时间用来计算存活时长
+    private static func saveStartTime(userDefaults: UserDefaults) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let currentStartTime = formatter.string(from: Date())
+        userDefaults.set(currentStartTime, forKey: Keys.liveDays)
+        return currentStartTime
+    }
+    
+    func getLiveDays() -> Int {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        
+        // 安全解包 startDateTime
+        if let startDateTime = formatter.date(from: self.liveDays) {
+            let calendar = Calendar.current
+            let now = Date()
+            let components = calendar.dateComponents([.day], from: startDateTime, to: now)
+            return components.day ?? 0
+        } else {
+            // 如果解析失败，返回0天
+            return 0
+        }
+    }
+    
     // 每分钟执行一次
     private func startTimer() {
         timer?.invalidate()
@@ -119,9 +156,9 @@ class CatViewModel: ObservableObject {
         guard isAlive else { return }
         
         DispatchQueue.main.async {
-            let penalty1 = Double(Int.random(in: 1...5))
-            let penalty2 = Double(Int.random(in: 1...5))
-            let penalty3 = Double(Int.random(in: 1...5))
+            let penalty1 = Double(Int.random(in: 1...3))
+            let penalty2 = Double(Int.random(in: 1...3))
+            let penalty3 = Double(Int.random(in: 1...3))
             self.mood = max(0, self.mood - penalty1)
             self.hunger = max(0, self.hunger - penalty2)
             self.cleanliness = max(0, self.cleanliness - penalty3)
@@ -167,6 +204,7 @@ class CatViewModel: ObservableObject {
         isAlive = true
         startTimer()
         saveData()
+        self.liveDays = Self.saveStartTime(userDefaults: userDefaults)
     }
     
 }
