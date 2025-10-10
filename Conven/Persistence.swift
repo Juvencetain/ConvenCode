@@ -35,7 +35,14 @@ struct PersistenceController {
         container = NSPersistentContainer(name: "Conven")
         if inMemory {
             container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
+        } else {
+            // MARK: - 在这里添加打印路径的代码
+            // 只有在非内存模式下才打印数据库的真实文件路径
+            if let storeURL = container.persistentStoreDescriptions.first?.url {
+                print("✅ Core Data 数据库文件路径: \(storeURL.path)")
+            }
         }
+
         container.loadPersistentStores(completionHandler: { (storeDescription, error) in
             if let error = error as NSError? {
                 // Replace this implementation with code to handle the error appropriately.

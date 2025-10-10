@@ -1,3 +1,11 @@
+//
+//  CatStatusView.swift
+//  Conven
+//
+//  Created by 土豆星球 on 2025/10/9.
+//
+
+
 import SwiftUI
 
 struct CatStatusView: View {
@@ -47,7 +55,7 @@ struct CatStatusView: View {
             
         }
         .padding(20)
-        .frame(width: 280) // 给弹窗一个固定的宽度
+        .frame(width: 300) // 给弹窗一个固定的宽度
     }
 }
 

@@ -1,76 +1,142 @@
+import Combine
 import Foundation
 import SwiftUI
 
-// 使用 ObservableObject，这样 SwiftUI 视图才能监视其变化
 class CatViewModel: ObservableObject {
     
-    // @Published 会在属性值改变时自动通知所有观察者（即我们的UI）
-    @Published var mood: Double = 100.0
-    @Published var hunger: Double = 100.0
-    @Published var cleanliness: Double = 100.0
-    @Published var isAlive: Bool = true
+    // MARK: - Published Properties
+    @Published var mood: Double
+    @Published var hunger: Double
+    @Published var cleanliness: Double
+    @Published var isAlive: Bool
     
+    // MARK: - Private Properties
     private var timer: Timer?
+    private var cancellables = Set<AnyCancellable>()
+    private let userDefaults = UserDefaults.standard
+
+    // 用于存储数据的 Key
+    private enum Keys {
+        static let mood = "cat_mood"
+        static let hunger = "cat_hunger"
+        static let cleanliness = "cat_cleanliness"
+        static let isAlive = "cat_isAlive"
+        static let lastSavedDate = "cat_lastSavedDate"
+    }
 
     init() {
-        // 启动一个定时器，每 30 分钟（1800秒）调用一次 reduceStats 方法
-        // 为了方便测试，你可以暂时设置为一个较短的时间，比如 10 秒
-        timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { _ in
+        self.mood = userDefaults.object(forKey: Keys.mood) as? Double ?? 100.0
+        self.hunger = userDefaults.object(forKey: Keys.hunger) as? Double ?? 100.0
+        self.cleanliness = userDefaults.object(forKey: Keys.cleanliness) as? Double ?? 100.0
+        self.isAlive = userDefaults.object(forKey: Keys.isAlive) as? Bool ?? true
+        
+        applyOfflinePenalty()
+        checkLiveness()
+
+        if isAlive {
+            startTimer()
+        }
+        
+        setupSubscribers()
+    }
+    
+    // 计算离线惩罚
+    private func applyOfflinePenalty() {
+        guard let lastDate = userDefaults.object(forKey: Keys.lastSavedDate) as? Date else { return }
+        
+        let timePassed = Date().timeIntervalSince(lastDate)
+        let minutesPassed = Int(timePassed / 60) // 离线多少分钟
+        
+        if minutesPassed > 0 {
+            print("离线了 \(minutesPassed) 分钟")
+            let totalPenalty = (1...minutesPassed).reduce(0) { acc, _ in
+                acc + Int.random(in: 1...5)
+            }
+            DispatchQueue.main.async {
+                self.mood = max(0, self.mood - Double(totalPenalty))
+                self.hunger = max(0, self.hunger - Double(totalPenalty))
+                self.cleanliness = max(0, self.cleanliness - Double(totalPenalty))
+            }
+        }
+    }
+    
+    // 订阅状态变化以自动保存
+    private func setupSubscribers() {
+        Publishers.CombineLatest3($mood, $hunger, $cleanliness)
+            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)
+            .sink { [weak self] _ in self?.saveData() }
+            .store(in: &cancellables)
+        
+        $isAlive
+            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)
+            .sink { [weak self] _ in self?.saveData() }
+            .store(in: &cancellables)
+    }
+    
+    // 保存数据
+    private func saveData() {
+        userDefaults.set(mood, forKey: Keys.mood)
+        userDefaults.set(hunger, forKey: Keys.hunger)
+        userDefaults.set(cleanliness, forKey: Keys.cleanliness)
+        userDefaults.set(isAlive, forKey: Keys.isAlive)
+        userDefaults.set(Date(), forKey: Keys.lastSavedDate)
+    }
+
+    // 每分钟执行一次
+    private func startTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             self.reduceStats()
         }
     }
     
-    // 降低数值的函数
+    // 每分钟减少 1-5 点
     func reduceStats() {
-        guard isAlive else { return } // 如果猫死了，就停止
+        guard isAlive else { return }
         
-        // SwiftUI 会在主线程更新UI，所以我们在这里确保数值更新也在主线程
         DispatchQueue.main.async {
-            // 每次减 1，并确保不会低于 0
-            self.mood = max(0, self.mood - 1)
-            self.hunger = max(0, self.hunger - 1)
-            self.cleanliness = max(0, self.cleanliness - 1)
-            
+            let penalty1 = Double(Int.random(in: 1...5))
+            let penalty2 = Double(Int.random(in: 1...5))
+            let penalty3 = Double(Int.random(in: 1...5))
+            self.mood = max(0, self.mood - penalty1)
+            self.hunger = max(0, self.hunger - penalty2)
+            self.cleanliness = max(0, self.cleanliness - penalty3)
             self.checkLiveness()
+            print("每分钟状态减少 \(Int(penalty1))、\(Int(penalty2))、\(Int(penalty3)) 点")
         }
     }
     
-    // 检查小猫的存活状态
     func checkLiveness() {
         let zeroStatsCount = [mood, hunger, cleanliness].filter { $0 == 0 }.count
         if zeroStatsCount >= 2 {
             isAlive = false
-            timer?.invalidate() // 猫死了，停止定时器
+            timer?.invalidate()
         }
     }
     
     // MARK: - User Actions
-    
     func play() {
         guard isAlive else { return }
-        mood = min(100, mood + 15) // 增加心情，但不超过100
+        mood = min(100, mood + 15)
     }
     
     func feed() {
         guard isAlive else { return }
-        hunger = min(100, hunger + 15) // 增加饥饿度
+        hunger = min(100, hunger + 15)
     }
     
     func clean() {
         guard isAlive else { return }
-        cleanliness = min(100, cleanliness + 15) // 增加清洁度
+        cleanliness = min(100, cleanliness + 15)
     }
     
-    // 重置游戏
     func restart() {
         mood = 100
         hunger = 100
         cleanliness = 100
         isAlive = true
-        // 重新启动定时器
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { _ in
-            self.reduceStats()
-        }
+        startTimer()
+        saveData()
     }
+    
 }
