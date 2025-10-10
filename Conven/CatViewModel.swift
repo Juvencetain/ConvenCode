@@ -143,7 +143,7 @@ class CatViewModel: ObservableObject {
         }
     }
     
-    // 每分钟执行一次
+    // 每10分钟执行一次
     private func startTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
@@ -151,7 +151,7 @@ class CatViewModel: ObservableObject {
         }
     }
     
-    // 每分钟减少 1-5 点
+    // 每10分钟减少 1-5 点
     func reduceStats() {
         guard isAlive else { return }
         
