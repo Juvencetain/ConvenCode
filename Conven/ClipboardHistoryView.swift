@@ -17,7 +17,7 @@ struct ClipboardHistoryView: View {
         ZStack {
             // ========== ⭐ 优化：更通透的毛玻璃背景 ==========
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.85)  // 提高透明度，更通透
+                .opacity(0.95)  // 提高透明度，更通透
                 .ignoresSafeArea()
             // ==============================================
             

@@ -138,7 +138,7 @@ struct IPLookupView: View {
         ZStack {
             // 毛玻璃背景
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.85)
+                .opacity(0.95)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -208,6 +208,7 @@ struct IPLookupView: View {
                         .font(.system(size: 14))
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
                 
                 Button(action: viewModel.lookupCurrentIP) {
                     HStack(spacing: 4) {
@@ -225,6 +226,7 @@ struct IPLookupView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
             }
         }
         .padding(16)
@@ -274,6 +276,7 @@ struct IPLookupView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
             }
         }
     }
@@ -412,6 +415,7 @@ struct InfoRow: View {
                         .foregroundStyle(.blue)
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
                 .transition(.scale.combined(with: .opacity))
             }
         }
