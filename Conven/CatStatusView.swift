@@ -33,6 +33,10 @@ struct CatStatusView: View {
                         openIPLookup()
                     }
                     
+                    Button("JSON格式化") {
+                        showJSONFormatter()
+                    }
+                    
                     Divider()
                     
                     Button("更多功能...") {
@@ -109,6 +113,29 @@ struct CatStatusView: View {
         
         print("🌐 打开 IP 地址查询窗口")
     }
+    
+    func showJSONFormatter() {
+        let jsonView = JSONFormatterView()
+        
+        let hostingController = NSHostingController(rootView: jsonView)
+        let window = NSWindow(contentViewController: hostingController)
+        
+        // ✅ 与 openIPLookup 完全一致的样式配置
+        window.title = ""
+        window.titlebarAppearsTransparent = true
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.setContentSize(NSSize(width: 420, height: 560))
+        window.center()
+        window.level = .floating
+        window.makeKeyAndOrderFront(nil)
+        
+        NSApp.activate(ignoringOtherApps: true)
+        
+        print("🧾 打开 JSON 格式化器窗口")
+    }
+
 }
 
 struct StatusRow: View {
