@@ -10,61 +10,80 @@ class CatViewModel: ObservableObject {
     @Published var hunger: Double
     @Published var cleanliness: Double
     @Published var isAlive: Bool
-    @Published var liveDays: String
+    @Published var startDateTime: String
+    @Published var catName: String
+    
+    // MARK: - Statistics
+    @Published var totalPlayCount: Int
+    @Published var totalFeedCount: Int
+    @Published var totalCleanCount: Int
     
     // MARK: - Private Properties
     private var timer: Timer?
+    private var aiTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
-    
-    // 用于存储数据的 Key
-    private enum Keys {
-        static let mood = "cat_mood"
-        static let hunger = "cat_hunger"
-        static let cleanliness = "cat_cleanliness"
-        static let isAlive = "cat_isAlive"
-        static let lastSavedDate = "cat_lastSavedDate"
-        static let liveDays = "cat_liveDays"
-    }
+    private let aiAssistant: CatAIAssistant = DefaultCatAI()
     
     init() {
+        // 初始化所有 @Published 属性
+        let savedMood = userDefaults.double(forKey: CatConfig.StorageKeys.mood)
+        self.mood = savedMood > 0 ? savedMood : CatConfig.GamePlay.initialMood
         
-        self.mood = userDefaults.object(forKey: Keys.mood) as? Double ?? 100.0
-        self.hunger = userDefaults.object(forKey: Keys.hunger) as? Double ?? 100.0
-        self.cleanliness = userDefaults.object(forKey: Keys.cleanliness) as? Double ?? 100.0
-        self.isAlive = userDefaults.object(forKey: Keys.isAlive) as? Bool ?? true
+        let savedHunger = userDefaults.double(forKey: CatConfig.StorageKeys.hunger)
+        self.hunger = savedHunger > 0 ? savedHunger : CatConfig.GamePlay.initialHunger
         
-        // 尝试从 UserDefaults 获取 liveDays
-        if let savedLiveDays = userDefaults.string(forKey: Keys.liveDays) {
-            // 如果有值，直接使用
-            self.liveDays = savedLiveDays
+        let savedCleanliness = userDefaults.double(forKey: CatConfig.StorageKeys.cleanliness)
+        self.cleanliness = savedCleanliness > 0 ? savedCleanliness : CatConfig.GamePlay.initialCleanliness
+        
+        // 加载存活状态
+        if userDefaults.object(forKey: CatConfig.StorageKeys.isAlive) != nil {
+            self.isAlive = userDefaults.bool(forKey: CatConfig.StorageKeys.isAlive)
         } else {
-            // 如果为空，保存当前时间，并重新赋值
-            self.liveDays = Self.saveStartTime(userDefaults: userDefaults)
+            self.isAlive = true
         }
         
+        // 加载名字
+        self.catName = userDefaults.string(forKey: CatConfig.StorageKeys.catName) ?? CatConfig.Info.name
+        
+        // 加载统计数据
+        self.totalPlayCount = userDefaults.integer(forKey: CatConfig.StorageKeys.totalPlayCount)
+        self.totalFeedCount = userDefaults.integer(forKey: CatConfig.StorageKeys.totalFeedCount)
+        self.totalCleanCount = userDefaults.integer(forKey: CatConfig.StorageKeys.totalCleanCount)
+        
+        // 加载或创建开始时间
+        if let savedDateTime = userDefaults.string(forKey: CatConfig.StorageKeys.startDateTime) {
+            self.startDateTime = savedDateTime
+        } else {
+            self.startDateTime = Self.createStartTime()
+            userDefaults.set(self.startDateTime, forKey: CatConfig.StorageKeys.startDateTime)
+        }
+        
+        // 初始化完成后执行其他操作
         applyOfflinePenalty()
         checkLiveness()
         
         if isAlive {
             startTimer()
+            startAITimer()
         }
         
         setupSubscribers()
     }
     
-    // 计算离线惩罚
+    // MARK: - Offline Penalty
     private func applyOfflinePenalty() {
-        guard let lastDate = userDefaults.object(forKey: Keys.lastSavedDate) as? Date else { return }
+        guard let lastDate = userDefaults.object(forKey: CatConfig.StorageKeys.lastSavedDate) as? Date else { return }
         
         let timePassed = Date().timeIntervalSince(lastDate)
-        let tenMinutesPassed = Int(timePassed / 600) // 离线多少个 10 分钟
+        let intervalsPassed = Int(timePassed / CatConfig.GamePlay.decayInterval)
         
-        if tenMinutesPassed > 0 {
-            print("离线了 \(tenMinutesPassed) 个 10 分钟")
-            let totalPenalty = (1...tenMinutesPassed).reduce(0) { acc, _ in
-                acc + Int.random(in: 1...5)
+        if intervalsPassed > 0 {
+            print("⏰ 离线了 \(intervalsPassed) 个周期")
+            let totalPenalty = (1...intervalsPassed).reduce(0) { acc, _ in
+                acc + Int.random(in: CatConfig.GamePlay.offlineDecayMin...CatConfig.GamePlay.offlineDecayMax)
             }
+            
             DispatchQueue.main.async {
                 self.mood = max(0, self.mood - Double(totalPenalty))
                 self.hunger = max(0, self.hunger - Double(totalPenalty))
@@ -73,17 +92,17 @@ class CatViewModel: ObservableObject {
         }
     }
     
-    private func notifyIfLow(_ name: String, value: Double) {
-        guard value < 20 else { return }  // 阈值 < 20 时才通知
+    // MARK: - Notification System
+    private func notifyIfLow(_ statName: String, value: Double, message: String) {
+        guard value < CatConfig.Notification.lowValueThreshold else { return }
         
         let content = UNMutableNotificationContent()
-        content.title = "小猫提醒"
-        content.body = "\(name) 太低啦！快去照顾一下它吧 🐱"
+        content.title = "\(catName)需要你啦！"
+        content.body = message
         content.sound = .default
         
-        // 立即触发
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: "low_\(statName)_\(UUID().uuidString)",
             content: content,
             trigger: nil
         )
@@ -95,8 +114,34 @@ class CatViewModel: ObservableObject {
         }
     }
     
+    // MARK: - AI Notification Timer
+    private func startAITimer() {
+        guard CatConfig.Notification.aiPushEnabled else { return }
+        
+        aiTimer?.invalidate()
+        aiTimer = Timer.scheduledTimer(withTimeInterval: CatConfig.Notification.aiPushInterval, repeats: true) { [weak self] _ in
+            self?.sendAIDailyMessage()
+        }
+    }
     
-    // 订阅状态变化以自动保存
+    private func sendAIDailyMessage() {
+        guard aiAssistant.shouldSendNotification() else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "\(catName)的日常"
+        content.body = aiAssistant.generateDailyMessage()
+        content.sound = .default
+        
+        let request = UNNotificationRequest(
+            identifier: "ai_daily_\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    // MARK: - Data Persistence
     private func setupSubscribers() {
         Publishers.CombineLatest3($mood, $hunger, $cleanliness)
             .debounce(for: .seconds(0.5), scheduler: RunLoop.main)
@@ -109,104 +154,118 @@ class CatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    // 保存数据
     private func saveData() {
-        userDefaults.set(mood, forKey: Keys.mood)
-        userDefaults.set(hunger, forKey: Keys.hunger)
-        userDefaults.set(cleanliness, forKey: Keys.cleanliness)
-        userDefaults.set(isAlive, forKey: Keys.isAlive)
-        userDefaults.set(Date(), forKey: Keys.lastSavedDate)
+        userDefaults.set(mood, forKey: CatConfig.StorageKeys.mood)
+        userDefaults.set(hunger, forKey: CatConfig.StorageKeys.hunger)
+        userDefaults.set(cleanliness, forKey: CatConfig.StorageKeys.cleanliness)
+        userDefaults.set(isAlive, forKey: CatConfig.StorageKeys.isAlive)
+        userDefaults.set(Date(), forKey: CatConfig.StorageKeys.lastSavedDate)
+        userDefaults.set(totalPlayCount, forKey: CatConfig.StorageKeys.totalPlayCount)
+        userDefaults.set(totalFeedCount, forKey: CatConfig.StorageKeys.totalFeedCount)
+        userDefaults.set(totalCleanCount, forKey: CatConfig.StorageKeys.totalCleanCount)
     }
     
-    //保存开始时间用来计算存活时长
-    private static func saveStartTime(userDefaults: UserDefaults) -> String {
+    private static func createStartTime() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let currentStartTime = formatter.string(from: Date())
-        userDefaults.set(currentStartTime, forKey: Keys.liveDays)
-        return currentStartTime
+        return formatter.string(from: Date())
     }
     
     func getLiveDays() -> Int {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        var days = 0
-        // 安全解包 startDateTime
-        if let startDateTime = formatter.date(from: self.liveDays) {
-            let calendar = Calendar.current
-            let now = Date()
-            let components = calendar.dateComponents([.day], from: startDateTime, to: now)
-            days = components.day ?? 0 + 1
-        } else {
-            // 如果解析失败，返回0天
-            days = 0
-        }
-        days = days + 1
-        return days
+        
+        guard let startDate = formatter.date(from: startDateTime) else { return 1 }
+        
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.day], from: startDate, to: Date())
+        return (components.day ?? 0) + 1
     }
     
-    // 每10分钟执行一次
+    // MARK: - Game Loop
     private func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
-            self.reduceStats()
+        timer = Timer.scheduledTimer(withTimeInterval: CatConfig.GamePlay.decayInterval, repeats: true) { [weak self] _ in
+            self?.reduceStats()
         }
     }
     
-    // 每10分钟减少 1-5 点
     func reduceStats() {
         guard isAlive else { return }
         
         DispatchQueue.main.async {
-            let penalty1 = Double(Int.random(in: 1...3))
-            let penalty2 = Double(Int.random(in: 1...3))
-            let penalty3 = Double(Int.random(in: 1...3))
+            let penalty1 = Double(Int.random(in: CatConfig.GamePlay.minDecayValue...CatConfig.GamePlay.maxDecayValue))
+            let penalty2 = Double(Int.random(in: CatConfig.GamePlay.minDecayValue...CatConfig.GamePlay.maxDecayValue))
+            let penalty3 = Double(Int.random(in: CatConfig.GamePlay.minDecayValue...CatConfig.GamePlay.maxDecayValue))
+            
             self.mood = max(0, self.mood - penalty1)
             self.hunger = max(0, self.hunger - penalty2)
             self.cleanliness = max(0, self.cleanliness - penalty3)
             
-            // 检查是否需要通知
-            self.notifyIfLow("心情", value: self.mood)
-            self.notifyIfLow("饥饿", value: self.hunger)
-            self.notifyIfLow("清洁", value: self.cleanliness)
+            // 发送低属性通知
+            self.notifyIfLow("mood", value: self.mood, message: CatConfig.Notification.lowMoodMessage)
+            self.notifyIfLow("hunger", value: self.hunger, message: CatConfig.Notification.lowHungerMessage)
+            self.notifyIfLow("cleanliness", value: self.cleanliness, message: CatConfig.Notification.lowCleanlinessMessage)
             
             self.checkLiveness()
-            print("每10分钟状态减少 \(Int(penalty1))、\(Int(penalty2))、\(Int(penalty3)) 点")
+            print("📉 属性衰减: 心情-\(Int(penalty1)) 饥饿-\(Int(penalty2)) 清洁-\(Int(penalty3))")
         }
     }
     
     func checkLiveness() {
         let zeroStatsCount = [mood, hunger, cleanliness].filter { $0 == 0 }.count
-        if zeroStatsCount >= 2 {
+        if zeroStatsCount >= CatConfig.GamePlay.deathThreshold {
             isAlive = false
             timer?.invalidate()
+            aiTimer?.invalidate()
         }
     }
     
     // MARK: - User Actions
     func play() {
         guard isAlive else { return }
-        mood = min(100, mood + 15)
+        withAnimation(.spring(response: CatConfig.UI.springResponse, dampingFraction: CatConfig.UI.springDamping)) {
+            mood = min(100, mood + CatConfig.GamePlay.playIncrement)
+            totalPlayCount += 1
+        }
     }
     
     func feed() {
         guard isAlive else { return }
-        hunger = min(100, hunger + 15)
+        withAnimation(.spring(response: CatConfig.UI.springResponse, dampingFraction: CatConfig.UI.springDamping)) {
+            hunger = min(100, hunger + CatConfig.GamePlay.feedIncrement)
+            totalFeedCount += 1
+        }
     }
     
     func clean() {
         guard isAlive else { return }
-        cleanliness = min(100, cleanliness + 15)
+        withAnimation(.spring(response: CatConfig.UI.springResponse, dampingFraction: CatConfig.UI.springDamping)) {
+            cleanliness = min(100, cleanliness + CatConfig.GamePlay.cleanIncrement)
+            totalCleanCount += 1
+        }
     }
     
     func restart() {
-        mood = 100
-        hunger = 100
-        cleanliness = 100
+        mood = CatConfig.GamePlay.initialMood
+        hunger = CatConfig.GamePlay.initialHunger
+        cleanliness = CatConfig.GamePlay.initialCleanliness
         isAlive = true
+        startDateTime = Self.createStartTime()
+        userDefaults.set(startDateTime, forKey: CatConfig.StorageKeys.startDateTime)
+        
+        totalPlayCount = 0
+        totalFeedCount = 0
+        totalCleanCount = 0
+        
         startTimer()
+        startAITimer()
         saveData()
-        self.liveDays = Self.saveStartTime(userDefaults: userDefaults)
     }
     
+    func updateCatName(_ newName: String) {
+        catName = newName
+        CatConfig.Info.updateName(newName)
+        userDefaults.set(newName, forKey: CatConfig.StorageKeys.catName)
+    }
 }

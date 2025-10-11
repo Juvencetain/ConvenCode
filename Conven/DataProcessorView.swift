@@ -26,7 +26,7 @@ struct ModernButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
-            .cursor(.pointingHand)
+            .cursor(NSCursor.pointingHand)
     }
     
     private func getColors(for style: ButtonStyleType, pressed: Bool) -> (background: Color, foreground: Color, border: Color) {

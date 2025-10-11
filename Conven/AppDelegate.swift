@@ -77,7 +77,7 @@ class GifAnimator {
             let properties = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [CFString: Any]
             let gifDict = properties?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
             let delay = gifDict?[kCGImagePropertyGIFDelayTime] as? Double ?? 0.1
-            frameDurations.append(max(delay, 0.02)) // 避免过低导致过载
+            frameDurations.append(max(delay, 0.02))
         }
     }
     
@@ -98,7 +98,6 @@ class GifAnimator {
         timer = nil
     }
     
-    
     private func nextFrame() {
         guard !frames.isEmpty else { return }
         frameIndex = (frameIndex + 1) % frames.count
@@ -116,17 +115,14 @@ class GifAnimator {
 }
 
 // MARK: - AppDelegate
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     
     private var statusItem: NSStatusItem!
-    private var popover: NSPopover!
+    private var popover: NSPopover?
     private var catViewModel: CatViewModel!
     private var cancellables = Set<AnyCancellable>()
     private var gifAnimator: GifAnimator?
-    
-    // ========== ⭐ 新增：剪贴板监控器 ==========
     private var clipboardMonitor: ClipboardMonitor?
-    // ==========================================
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 请求通知权限
@@ -135,31 +131,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 print("✅ 已获得通知权限")
             } else {
                 print("❌ 通知权限被拒绝: \(String(describing: error))")
-            }}
+            }
+        }
         
+        // 检查 GIF 文件
         if let path = Bundle.main.path(forResource: "cat-animated", ofType: "gif") {
             print("✅ GIF 文件找到: \(path)")
         } else {
             print("❌ GIF 文件未找到")
         }
         
+        // 初始化 Core Data
         _ = PersistenceController.shared
+        
+        // 初始化 ViewModel
         catViewModel = CatViewModel()
         
+        // 创建状态栏图标
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
         button.action = #selector(togglePopover)
         
+        // 设置 GIF 动画
         gifAnimator = GifAnimator(statusButton: button)
-        gifAnimator?.setVerticalOffset(4)  // 调节位置
+        gifAnimator?.setVerticalOffset(4)
         gifAnimator?.loadGif(named: "cat-animated")
         
-        let catStatusView = CatStatusView(viewModel: catViewModel)
-        popover = NSPopover()
-        popover.contentSize = NSSize(width: 280, height: 320)
-        popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: catStatusView)
-        
+        // 监听小猫存活状态，控制动画
         catViewModel.$isAlive
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isAlive in
@@ -176,27 +174,66 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
         
-        // ========== ⭐ 新增：初始化并启动剪贴板监控 ==========
+        // 初始化并启动剪贴板监控
         clipboardMonitor = ClipboardMonitor(persistenceController: PersistenceController.shared)
         clipboardMonitor?.startMonitoring()
         print("✅ 剪贴板监控已启动")
-        // =====================================================
+        
+        // 注册通知，当应用不再是活动窗口时，关闭 popover
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(closePopover),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
     }
     
-    // ========== ⭐ 新增：应用退出时停止监控 ==========
     func applicationWillTerminate(_ notification: Notification) {
         clipboardMonitor?.stopMonitoring()
         print("⏹️ 剪贴板监控已停止")
+        
+        // 移除通知监听
+        NotificationCenter.default.removeObserver(
+            self,
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
     }
-    // ================================================
     
     @objc func togglePopover() {
         guard let button = statusItem.button else { return }
-        if popover.isShown {
+        
+        if let popover = popover, popover.isShown {
             popover.performClose(nil)
+            self.popover = nil
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            // 创建新的视图实例
+            let menuView = CatMenuView(viewModel: catViewModel)
+            
+            // 创建新的 popover
+            let newPopover = NSPopover()
+            newPopover.behavior = .transient
+            newPopover.contentViewController = NSHostingController(rootView: menuView)
+            
+            // 设置代理以处理 popover 关闭事件
+            newPopover.delegate = self
+            
+            newPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
+            
+            self.popover = newPopover
+        }
+    }
+    
+    // MARK: - NSPopoverDelegate
+    func popoverDidClose(_ notification: Notification) {
+        popover = nil
+    }
+    
+    @objc func closePopover() {
+        if let popover = popover, popover.isShown {
+            popover.performClose(nil)
+            self.popover = nil
         }
     }
 }

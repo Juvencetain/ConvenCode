@@ -107,20 +107,20 @@ struct JSONFormatterView: View {
     
     private var headerActions: some View {
         HStack(spacing: 8) {
-            ActionButton(icon: "doc.on.doc", tooltip: "复制结果") {
+            ActionButtonJson(icon: "doc.on.doc", tooltip: "复制结果") {
                 copyToClipboard(outputText)
                 showSuccessToast = true
             }
             
-            ActionButton(icon: "arrow.2.squarepath", tooltip: "交换输入输出") {
+            ActionButtonJson(icon: "arrow.2.squarepath", tooltip: "交换输入输出") {
                 swapInputOutput()
             }
             
-            ActionButton(icon: "plus.square", tooltip: "新建窗口") {
+            ActionButtonJson(icon: "plus.square", tooltip: "新建窗口") {
                 openNewWindow()
             }
             
-            ActionButton(
+            ActionButtonJson(
                 icon: isResultFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                 tooltip: isResultFullscreen ? "退出全屏" : "全屏显示"
             ) {
@@ -448,7 +448,9 @@ struct JSONFormatterView: View {
 }
 
 // MARK: - Helper Components
-struct ActionButton: View {
+
+// [FIXED] Changed 'struct' to 'private struct' to resolve redeclaration error
+private struct ActionButtonJson: View {
     let icon: String
     let tooltip: String
     let action: () -> Void
@@ -594,7 +596,7 @@ class JSONProcessor {
     
     private func unescapeString(_ input: String) throws -> String {
         // Try to parse as JSON string first
-        if let data = "\"\\(input)\"".data(using: .utf8),
+        if let data = "\"\(input)\"".data(using: .utf8),
            let unescaped = try? JSONSerialization.jsonObject(with: data) as? String {
             return unescaped
         }
