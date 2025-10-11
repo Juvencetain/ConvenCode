@@ -124,6 +124,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var gifAnimator: GifAnimator?
     
+    // ========== ⭐ 新增：剪贴板监控器 ==========
+    private var clipboardMonitor: ClipboardMonitor?
+    // ==========================================
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 请求通知权限
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
@@ -171,7 +175,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             .store(in: &cancellables)
+        
+        // ========== ⭐ 新增：初始化并启动剪贴板监控 ==========
+        clipboardMonitor = ClipboardMonitor(persistenceController: PersistenceController.shared)
+        clipboardMonitor?.startMonitoring()
+        print("✅ 剪贴板监控已启动")
+        // =====================================================
     }
+    
+    // ========== ⭐ 新增：应用退出时停止监控 ==========
+    func applicationWillTerminate(_ notification: Notification) {
+        clipboardMonitor?.stopMonitoring()
+        print("⏹️ 剪贴板监控已停止")
+    }
+    // ================================================
     
     @objc func togglePopover() {
         guard let button = statusItem.button else { return }

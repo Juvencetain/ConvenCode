@@ -6,218 +6,293 @@ struct ClipboardHistoryView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.time, ascending: false)],
+        sortDescriptors: [NSSortDescriptor(keyPath: \Paste.time, ascending: false)],
         animation: .default)
-    private var items: FetchedResults<Item>
+    private var items: FetchedResults<Paste>
     
     @State private var hoveredItemID: NSManagedObjectID?
     @State private var copiedItemID: NSManagedObjectID?
-    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 标题栏
-            HStack {
-                Image(systemName: "doc.on.clipboard")
-                    .foregroundColor(.blue)
-                Text("剪贴板历史")
-                    .font(.headline)
-                Spacer()
-                
-                Text("\(items.count) 条记录")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+        ZStack {
+            // ========== ⭐ 优化：更通透的毛玻璃背景 ==========
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(0.95)  // 提高透明度，更通透
+                .ignoresSafeArea()
+            // ==============================================
             
-            Divider()
-            
-            // 列表内容
-            if items.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 50))
-                        .foregroundColor(.gray)
-                    Text("还没有剪贴板历史")
+            VStack(spacing: 0) {
+                // 简洁标题栏
+                HStack(spacing: 12) {
+                    Image(systemName: "doc.on.clipboard.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.blue.gradient)
+                    
+                    Text("剪贴板")
+                        .font(.system(size: 14, weight: .medium))
+                    
+                    Spacer()
+                    
+                    Text("\(items.count)")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.secondary.opacity(0.15))
+                        )
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 1) {
-                        ForEach(items) { item in
-                            ClipboardItemRow(
-                                item: item,
-                                isHovered: hoveredItemID == item.objectID,
-                                isCopied: copiedItemID == item.objectID,
-                                onHover: { hoveredItemID = $0 ? item.objectID : nil },
-                                onCopy: {
-                                    copyToClipboard(item)
-                                    copiedItemID = item.objectID
-                                    // 0.5 秒后重置复制状态
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                        if copiedItemID == item.objectID {
-                                            copiedItemID = nil
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                
+                // 内容区域
+                if items.isEmpty {
+                    emptyState
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 8) {
+                            ForEach(items) { item in
+                                ModernClipboardItem(
+                                    item: item,
+                                    isHovered: hoveredItemID == item.objectID,
+                                    isCopied: copiedItemID == item.objectID,
+                                    onHover: { isHovering in
+                                        hoveredItemID = isHovering ? item.objectID : nil
+                                    },
+                                    onCopy: {
+                                        copyToClipboard(item)
+                                        copiedItemID = item.objectID
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                            if copiedItemID == item.objectID {
+                                                copiedItemID = nil
+                                            }
                                         }
-                                    }
-                                },
-                                onDelete: { deleteItem(item) }
-                            )
+                                    },
+                                    onDelete: { deleteItem(item) }
+                                )
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
                     }
-                    .padding(.vertical, 8)
+                }
+                
+                // 底部操作栏
+                if !items.isEmpty {
+                    bottomBar
                 }
             }
-            
-            Divider()
-            
-            // 底部操作栏
-            HStack {
-                Button(action: clearAll) {
-                    Label("清空全部", systemImage: "trash")
-                }
-                .buttonStyle(.borderless)
-                .foregroundColor(.red)
-                .disabled(items.isEmpty)
-                
-                Spacer()
-                
-                Button("关闭") {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 500, height: 600)
+        .frame(width: 420, height: 560)
     }
     
-    // 复制到剪贴板
-    private func copyToClipboard(_ item: Item) {
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tray")
+                .font(.system(size: 48))
+                .foregroundStyle(.tertiary)
+            Text("暂无记录")
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var bottomBar: some View {
+        HStack {
+            // ========== ⭐ 优化：去掉绿框，改用普通按钮样式 ==========
+            Button(action: clearAll) {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                    Text("清空")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundColor(.red.opacity(0.8))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.red.opacity(0.1))
+                )
+            }
+            .buttonStyle(.plain)  // 使用 plain 样式去掉边框
+            .focusable(false)
+            // =======================================================
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            Rectangle()
+                .fill(Color.black.opacity(0.05))
+        )
+    }
+    
+    private func copyToClipboard(_ item: Paste) {
         if let data = item.data {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(data, forType: .string)
-            print("✅ 已复制: \(data.prefix(30))...")
         }
     }
     
-    // 删除单条记录
-    private func deleteItem(_ item: Item) {
-        withAnimation {
+    private func deleteItem(_ item: Paste) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             viewContext.delete(item)
-            do {
-                try viewContext.save()
-                print("🗑️ 已删除记录")
-            } catch {
-                print("❌ 删除失败: \(error.localizedDescription)")
-            }
+            try? viewContext.save()
         }
     }
     
-    // 清空所有记录
     private func clearAll() {
-        withAnimation {
-            for item in items {
-                viewContext.delete(item)
-            }
-            do {
-                try viewContext.save()
-                print("🗑️ 已清空所有记录")
-            } catch {
-                print("❌ 清空失败: \(error.localizedDescription)")
-            }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            items.forEach { viewContext.delete($0) }
+            try? viewContext.save()
         }
     }
 }
 
-// 单个剪贴板项目行
-struct ClipboardItemRow: View {
-    let item: Item
+// ========== ⭐ 优化：重新设计单项，加入原生 Popover 预览 ==========
+struct ModernClipboardItem: View {
+    let item: Paste
     let isHovered: Bool
     let isCopied: Bool
     let onHover: (Bool) -> Void
     let onCopy: () -> Void
     let onDelete: () -> Void
     
+    @State private var showPopover = false
+    
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // 左侧图标
-            Image(systemName: isCopied ? "checkmark.circle.fill" : "doc.on.doc")
-                .foregroundColor(isCopied ? .green : .blue)
-                .frame(width: 20)
+        HStack(spacing: 12) {
+            // 状态指示器
+            Circle()
+                .fill(isCopied ? Color.green.gradient : Color.blue.gradient)
+                .frame(width: 6, height: 6)
+                .opacity(isCopied ? 1 : 0.4)
             
-            // 内容区域
+            // 内容
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.data ?? "无内容")
-                    .lineLimit(3)
-                    .font(.body)
+                Text(item.data ?? "")
+                    .font(.system(size: 13))
+                    .lineLimit(2)
                     .foregroundColor(.primary)
                 
                 if let time = item.time {
-                    Text(formatDate(time))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text(formatTime(time))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // ========== ⭐ 新增：使用 popover 显示完整内容 ==========
+            .popover(isPresented: $showPopover, arrowEdge: .trailing) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("完整内容")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    
+                    Text(item.data ?? "")
+                        .font(.system(size: 12))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: 300)
+                }
+                .padding(12)
+                .background(VisualEffectBlur(material: .popover, blendingMode: .behindWindow))
+            }
+            // ====================================================
             
-            // 右侧删除按钮
-            if isHovered {
+            // 删除按钮
+            if isHovered && !isCopied {
                 Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .transition(.scale.combined(with: .opacity))
+            }
+            
+            // 复制成功提示
+            if isCopied {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.green)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isHovered ? Color.gray.opacity(0.1) : Color.clear)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isHovered ? Color.white.opacity(0.5) : Color.white.opacity(0.2))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHovered ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        // ========== ⭐ 优化：改用简单的悬停检测 ==========
         .onHover { hovering in
             onHover(hovering)
+            // 悬停 0.5 秒后显示 popover
+            if hovering {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if isHovered {
+                        showPopover = true
+                    }
+                }
+            } else {
+                showPopover = false
+            }
         }
+        // ===============================================
         .onTapGesture {
             onCopy()
         }
-        .cursor(.pointingHand) // 鼠标悬停时显示手型
+        .cursor(.pointingHand)
     }
     
-    // 格式化日期
-    private func formatDate(_ date: Date) -> String {
+    private func formatTime(_ date: Date) -> String {
         let calendar = Calendar.current
-        let now = Date()
-        
         if calendar.isDateInToday(date) {
             let formatter = DateFormatter()
             formatter.timeStyle = .short
-            return "今天 " + formatter.string(from: date)
+            return formatter.string(from: date)
         } else if calendar.isDateInYesterday(date) {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            return "昨天 " + formatter.string(from: date)
+            return "昨天"
         } else {
             let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            formatter.timeStyle = .short
+            formatter.dateFormat = "MM/dd"
             return formatter.string(from: date)
         }
     }
 }
 
-// 自定义鼠标样式扩展
+// 毛玻璃效果
+struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+    
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
+// 光标扩展
 extension View {
     func cursor(_ cursor: NSCursor) -> some View {
         self.onHover { inside in
@@ -230,7 +305,6 @@ extension View {
     }
 }
 
-// 预览
 #Preview {
     ClipboardHistoryView()
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
