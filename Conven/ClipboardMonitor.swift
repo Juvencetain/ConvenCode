@@ -8,8 +8,8 @@ class ClipboardMonitor {
     private let persistenceController: PersistenceController
     
     // ========== ⭐ 新增：配置常量 ==========
-    private let maxStringLength: Int = 1000  // 最大字符串长度
-    private let maxHistoryCount: Int = 2000  // 最大历史记录数
+    private let maxStringLength: Int = 3000  // 最大字符串长度
+    private let maxHistoryCount: Int = 100  // 最大历史记录数
     // ======================================
     
     init(persistenceController: PersistenceController = .shared) {
@@ -19,8 +19,8 @@ class ClipboardMonitor {
     
     // 开始监控剪贴板
     func startMonitoring() {
-        // 每 3 秒检查一次剪贴板
-        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+        // 每 10 秒检查一次剪贴板
+        timer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             self?.checkClipboard()
         }
         
