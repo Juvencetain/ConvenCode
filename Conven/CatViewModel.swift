@@ -130,17 +130,19 @@ class CatViewModel: ObservableObject {
     func getLiveDays() -> Int {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        
+        var days = 0
         // 安全解包 startDateTime
         if let startDateTime = formatter.date(from: self.liveDays) {
             let calendar = Calendar.current
             let now = Date()
             let components = calendar.dateComponents([.day], from: startDateTime, to: now)
-            return components.day ?? 0
+            days = components.day ?? 0 + 1
         } else {
             // 如果解析失败，返回0天
-            return 0
+            days = 0
         }
+        days = days + 1
+        return days
     }
     
     // 每10分钟执行一次

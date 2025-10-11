@@ -30,7 +30,7 @@ struct CatStatusView: View {
                     }
                     
                     Button("IP 地址查询") {
-                        print("查询当前 IP 地址")
+                        openIPLookup()
                     }
                     
                     Divider()
@@ -86,6 +86,28 @@ struct CatStatusView: View {
         NSApp.activate(ignoringOtherApps: true)
         
         print("📋 打开剪贴板历史窗口")
+    }
+    
+    private func openIPLookup() {
+        let ipView = IPLookupView()
+        
+        let hostingController = NSHostingController(rootView: ipView)
+        let window = NSWindow(contentViewController: hostingController)
+        
+        // 设置窗口样式（与剪贴板历史保持一致）
+        window.title = ""
+        window.titlebarAppearsTransparent = true
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.setContentSize(NSSize(width: 420, height: 560))
+        window.center()
+        window.level = .floating
+        window.makeKeyAndOrderFront(nil)
+        
+        NSApp.activate(ignoringOtherApps: true)
+        
+        print("🌐 打开 IP 地址查询窗口")
     }
 }
 

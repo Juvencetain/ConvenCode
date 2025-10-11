@@ -17,7 +17,7 @@ struct ClipboardHistoryView: View {
         ZStack {
             // ========== ⭐ 优化：更通透的毛玻璃背景 ==========
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)  // 提高透明度，更通透
+                .opacity(0.85)  // 提高透明度，更通透
                 .ignoresSafeArea()
             // ==============================================
             
@@ -269,38 +269,6 @@ struct ModernClipboardItem: View {
             let formatter = DateFormatter()
             formatter.dateFormat = "MM/dd"
             return formatter.string(from: date)
-        }
-    }
-}
-
-// 毛玻璃效果
-struct VisualEffectBlur: NSViewRepresentable {
-    var material: NSVisualEffectView.Material
-    var blendingMode: NSVisualEffectView.BlendingMode
-    
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-    
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
-
-// 光标扩展
-extension View {
-    func cursor(_ cursor: NSCursor) -> some View {
-        self.onHover { inside in
-            if inside {
-                cursor.push()
-            } else {
-                NSCursor.pop()
-            }
         }
     }
 }
