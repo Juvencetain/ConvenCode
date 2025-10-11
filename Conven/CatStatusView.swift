@@ -25,6 +25,11 @@ struct CatStatusView: View {
                 .buttonStyle(.borderedProminent)
                 
                 Menu("请教猫猫") {
+                    // ⭐ 新增功能入口
+                    Button("数据处理工具") {
+                        openDataProcessor()
+                    }
+                    
                     Button("剪贴板历史") {
                         openClipboardHistory()
                     }
@@ -69,75 +74,53 @@ struct CatStatusView: View {
         .frame(width: 300)
     }
     
-    private func openClipboardHistory() {
-        let historyView = ClipboardHistoryView()
-            .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+    // MARK: - 提高效率和整洁度: 提取通用窗口创建逻辑
+    
+    /// 创建并显示一个具有统一 macOS 样式（透明、无边框）的辅助工具窗口。
+    private func openUtilityWindow<Content: View>(view: Content, title: String = "工具", size: NSSize = NSSize(width: 420, height: 560)) {
+        let hostingController = NSHostingController(rootView: view)
         
-        let hostingController = NSHostingController(rootView: historyView)
         let window = NSWindow(contentViewController: hostingController)
         
-        // 设置窗口样式
-        window.title = ""
+        // 统一美化 UI: 确保所有辅助窗口的样式完全一致
+        window.title = title
         window.titlebarAppearsTransparent = true
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.isOpaque = false
-        window.backgroundColor = .clear
-        window.setContentSize(NSSize(width: 420, height: 560))
+        window.backgroundColor = .clear // 必须设置为 clear 才能透出 VisualEffectBlur 的效果
+        window.setContentSize(size)
         window.center()
-        window.level = .floating
+        window.level = .floating // 使窗口保持在其他应用之上
         window.makeKeyAndOrderFront(nil)
         
         NSApp.activate(ignoringOtherApps: true)
+        print("✅ 打开 \(title) 窗口")
+    }
+
+    // MARK: - 功能调用 (使用新的通用方法)
+    
+    private func openClipboardHistory() {
+        let historyView = ClipboardHistoryView()
+             .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
         
-        print("📋 打开剪贴板历史窗口")
+        openUtilityWindow(view: historyView, title: "剪贴板历史")
     }
     
     private func openIPLookup() {
-        let ipView = IPLookupView()
-        
-        let hostingController = NSHostingController(rootView: ipView)
-        let window = NSWindow(contentViewController: hostingController)
-        
-        // 设置窗口样式（与剪贴板历史保持一致）
-        window.title = ""
-        window.titlebarAppearsTransparent = true
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.setContentSize(NSSize(width: 420, height: 560))
-        window.center()
-        window.level = .floating
-        window.makeKeyAndOrderFront(nil)
-        
-        NSApp.activate(ignoringOtherApps: true)
-        
-        print("🌐 打开 IP 地址查询窗口")
+        openUtilityWindow(view: IPLookupView(), title: "IP 地址查询")
     }
     
     func showJSONFormatter() {
-        let jsonView = JSONFormatterView()
-        
-        let hostingController = NSHostingController(rootView: jsonView)
-        let window = NSWindow(contentViewController: hostingController)
-        
-        // ✅ 与 openIPLookup 完全一致的样式配置
-        window.title = ""
-        window.titlebarAppearsTransparent = true
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.setContentSize(NSSize(width: 420, height: 560))
-        window.center()
-        window.level = .floating
-        window.makeKeyAndOrderFront(nil)
-        
-        NSApp.activate(ignoringOtherApps: true)
-        
-        print("🧾 打开 JSON 格式化器窗口")
+        openUtilityWindow(view: JSONFormatterView(), title: "JSON 格式化器")
     }
-
+    
+    // 新增功能入口
+    func openDataProcessor() {
+        openUtilityWindow(view: DataProcessorView(), title: "数据处理工具")
+    }
 }
 
+// StatusRow 结构体保持不变
 struct StatusRow: View {
     let icon: String
     let label: String
