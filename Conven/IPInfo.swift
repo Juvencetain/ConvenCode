@@ -273,13 +273,13 @@ struct IPLookupView: View {
             if viewModel.showSuccessToast {
                 toastView
             }
-        }
+        }.focusable(false)
     }
     
     // MARK: - Background
     private var backgroundView: some View {
         VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-            .opacity(0.95)
+            .opacity(1)
             .ignoresSafeArea()
     }
     

@@ -4,25 +4,102 @@ import AppKit
 import ScreenCaptureKit
 import Combine
 
-// MARK: - OCR 结果模型
+// MARK: - 截图模式
+enum CaptureMode: String, CaseIterable, Identifiable {
+    case area = "区域截图"
+    case fullscreen = "全屏截图"
+    case window = "窗口截图"
+    case timed = "延时截图"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .area: return "crop"
+        case .fullscreen: return "rectangle.fill"
+        case .window: return "macwindow"
+        case .timed: return "timer"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .area: return .blue
+        case .fullscreen: return .purple
+        case .window: return .indigo
+        case .timed: return .orange
+        }
+    }
+}
+
+// MARK: - 编辑工具
+enum EditTool: String, CaseIterable {
+    case arrow = "箭头"
+    case rectangle = "矩形"
+    case circle = "圆形"
+    case text = "文字"
+    case mosaic = "马赛克"
+    case eraser = "橡皮擦"
+    case marker = "标记"
+    
+    var icon: String {
+        switch self {
+        case .arrow: return "arrow.up.right"
+        case .rectangle: return "rectangle"
+        case .circle: return "circle"
+        case .text: return "textformat"
+        case .mosaic: return "squareshape.split.3x3"
+        case .eraser: return "eraser.fill"
+        case .marker: return "pencil.tip"
+        }
+    }
+}
+
+// MARK: - OCR 结果
 struct OCRResult: Identifiable {
     let id = UUID()
     let text: String
     let confidence: Float
-    let timestamp: Date
-    
-    var confidencePercentage: Int {
-        Int(confidence * 100)
-    }
 }
 
-// MARK: - 截图模式
-enum CaptureMode {
-    case selection      // 区域截图
-    case fullScreen     // 全屏截图
-    case window         // 窗口截图
-    case clipboard      // 从剪贴板
-    case file           // 从文件
+// MARK: - 截图服务
+class ScreenshotService {
+    static let shared = ScreenshotService()
+    
+    func capture(mode: CaptureMode, delay: Int = 0) async -> NSImage? {
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+        }
+        
+        let task = Process()
+        task.launchPath = "/usr/sbin/screencapture"
+        
+        var args = ["-c"]  // 复制到剪贴板
+        switch mode {
+        case .area, .timed:
+            args.insert("-i", at: 0)  // 交互式
+        case .fullscreen:
+            break  // 无参数表示全屏
+        case .window:
+            args.insert("-w", at: 0)  // 窗口模式
+        }
+        
+        task.arguments = args
+        try? task.run()
+        task.waitUntilExit()
+        
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        
+        return NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage
+    }
+    
+    func saveImage(_ image: NSImage, to url: URL) {
+        if let tiffData = image.tiffRepresentation,
+           let bitmapImage = NSBitmapImageRep(data: tiffData),
+           let pngData = bitmapImage.representation(using: .png, properties: [:]) {
+            try? pngData.write(to: url)
+        }
+    }
 }
 
 // MARK: - OCR 服务
@@ -31,7 +108,7 @@ class OCRService {
     
     func recognizeText(from image: NSImage) async throws -> [OCRResult] {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            throw OCRError.invalidImage
+            throw NSError(domain: "OCR", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的图片"])
         }
         
         return try await withCheckedThrowingContinuation { continuation in
@@ -41,20 +118,10 @@ class OCRService {
                     return
                 }
                 
-                guard let observations = request.results as? [VNRecognizedTextObservation] else {
-                    continuation.resume(returning: [])
-                    return
-                }
-                
+                let observations = request.results as? [VNRecognizedTextObservation] ?? []
                 let results = observations.compactMap { observation -> OCRResult? in
-                    guard let topCandidate = observation.topCandidates(1).first else {
-                        return nil
-                    }
-                    return OCRResult(
-                        text: topCandidate.string,
-                        confidence: topCandidate.confidence,
-                        timestamp: Date()
-                    )
+                    guard let topCandidate = observation.topCandidates(1).first else { return nil }
+                    return OCRResult(text: topCandidate.string, confidence: topCandidate.confidence)
                 }
                 
                 continuation.resume(returning: results)
@@ -65,199 +132,93 @@ class OCRService {
             request.usesLanguageCorrection = true
             
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            
-            do {
-                try handler.perform([request])
-            } catch {
-                continuation.resume(throwing: error)
-            }
-        }
-    }
-    
-    enum OCRError: LocalizedError {
-        case invalidImage
-        case noTextFound
-        
-        var errorDescription: String? {
-            switch self {
-            case .invalidImage:
-                return "无效的图片格式"
-            case .noTextFound:
-                return "未识别到文字"
-            }
-        }
-    }
-}
-
-// MARK: - 增强截图服务
-class EnhancedScreenshotService {
-    static let shared = EnhancedScreenshotService()
-    
-    // 区域截图（交互式选择）
-    func captureSelection() async -> NSImage? {
-        return await captureWithMode("-i")
-    }
-    
-    // 全屏截图
-    func captureFullScreen() async -> NSImage? {
-        return await captureWithMode("")
-    }
-    
-    // 窗口截图
-    func captureWindow() async -> NSImage? {
-        return await captureWithMode("-w")
-    }
-    
-    // 延时截图
-    func captureWithDelay(seconds: Int, mode: String = "-i") async -> NSImage? {
-        try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
-        return await captureWithMode(mode)
-    }
-    
-    private func captureWithMode(_ mode: String) async -> NSImage? {
-        let task = Process()
-        task.launchPath = "/usr/sbin/screencapture"
-        
-        var args = ["-c"]  // 复制到剪贴板
-        if !mode.isEmpty {
-            args.insert(mode, at: 0)
-        }
-        task.arguments = args
-        
-        try? task.run()
-        task.waitUntilExit()
-        
-        // 短暂延迟确保剪贴板更新
-        try? await Task.sleep(nanoseconds: 100_000_000)
-        
-        if let image = NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
-            return image
-        }
-        
-        return nil
-    }
-    
-    // 从剪贴板读取
-    func getImageFromClipboard() -> NSImage? {
-        return NSPasteboard.general.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage
-    }
-    
-    // 从文件选择
-    func selectImageFile() -> NSImage? {
-        let openPanel = NSOpenPanel()
-        openPanel.allowedContentTypes = [.image, .png, .jpeg]
-        openPanel.allowsMultipleSelection = false
-        openPanel.canChooseDirectories = false
-        
-        if openPanel.runModal() == .OK, let url = openPanel.url {
-            return NSImage(contentsOf: url)
-        }
-        
-        return nil
-    }
-    
-    // 保存图片到文件
-    func saveImage(_ image: NSImage) {
-        let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.png]
-        savePanel.nameFieldStringValue = "Screenshot-\(Date().timeIntervalSince1970).png"
-        
-        if savePanel.runModal() == .OK, let url = savePanel.url {
-            if let tiffData = image.tiffRepresentation,
-               let bitmapImage = NSBitmapImageRep(data: tiffData),
-               let pngData = bitmapImage.representation(using: .png, properties: [:]) {
-                try? pngData.write(to: url)
-            }
+            try? handler.perform([request])
         }
     }
 }
 
 // MARK: - ViewModel
 @MainActor
-class OCRViewModel: ObservableObject {
-    @Published var recognizedText = ""
+class ScreenshotViewModel: ObservableObject {
+    @Published var capturedImage: NSImage?
+    @Published var isCapturing = false
+    @Published var showEditor = false
     @Published var ocrResults: [OCRResult] = []
-    @Published var isProcessing = false
-    @Published var errorMessage: String?
-    @Published var currentImage: NSImage?
-    @Published var showSuccessToast = false
+    @Published var recognizedText = ""
+    @Published var showToast = false
     @Published var toastMessage = ""
-    @Published var averageConfidence: Float = 0
-    @Published var selectedTab = 0  // 0: 截图, 1: OCR结果
     @Published var delaySeconds = 3
+    @Published var showDelayPicker = false
     
-    private let ocrService = OCRService.shared
-    private let screenshotService = EnhancedScreenshotService.shared
     private var hiddenWindows: [NSWindow] = []
     
-    // 截图并识别
-    func captureAndRecognize(mode: CaptureMode) async {
-        isProcessing = true
-        errorMessage = nil
+    func startCapture(mode: CaptureMode) async {
+        isCapturing = true
+        hideAllWindows()
         
-        // 需要隐藏窗口的模式
-        if mode == .selection || mode == .fullScreen || mode == .window {
-            hideAllWindows()
-            try? await Task.sleep(nanoseconds: 300_000_000)
+        let delay = mode == .timed ? delaySeconds : 0
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        
+        if let image = await ScreenshotService.shared.capture(mode: mode, delay: delay) {
+            capturedImage = image
+            showEditor = true
         }
         
-        var image: NSImage?
+        showAllWindows()
+        isCapturing = false
+    }
+    
+    func performOCR() async {
+        guard let image = capturedImage else { return }
         
-        switch mode {
-        case .selection:
-            image = await screenshotService.captureSelection()
-        case .fullScreen:
-            image = await screenshotService.captureFullScreen()
-        case .window:
-            image = await screenshotService.captureWindow()
-        case .clipboard:
-            image = screenshotService.getImageFromClipboard()
-        case .file:
-            image = screenshotService.selectImageFile()
-        }
-        
-        // 显示窗口
-        if mode == .selection || mode == .fullScreen || mode == .window {
-            showAllWindows()
-        }
-        
-        if let image = image {
-            currentImage = image
-            await performOCR(on: image)
-            selectedTab = 1  // 自动切换到结果标签
-        } else {
-            errorMessage = mode == .clipboard ? "剪贴板中没有图片" : "截图失败或已取消"
-            isProcessing = false
+        do {
+            ocrResults = try await OCRService.shared.recognizeText(from: image)
+            recognizedText = ocrResults.map { $0.text }.joined(separator: "\n")
+            
+            if !recognizedText.isEmpty {
+                toastMessage = "识别成功，共 \(ocrResults.count) 行"
+                showToast = true
+            }
+        } catch {
+            toastMessage = "识别失败"
+            showToast = true
         }
     }
     
-    // 延时截图
-    func delayedCapture(mode: CaptureMode) async {
-        isProcessing = true
-        errorMessage = nil
-        toastMessage = "将在 \(delaySeconds) 秒后截图"
-        showSuccessToast = true
+    func copyImage() {
+        guard let image = capturedImage else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+        toastMessage = "已复制图片"
+        showToast = true
+    }
+    
+    func copyText() {
+        guard !recognizedText.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(recognizedText, forType: .string)
+        toastMessage = "已复制文字"
+        showToast = true
+    }
+    
+    func saveImage() {
+        guard let image = capturedImage else { return }
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.png]
+        savePanel.nameFieldStringValue = "Screenshot-\(Date().timeIntervalSince1970).png"
         
-        hideAllWindows()
-        
-        let modeString: String
-        switch mode {
-        case .selection: modeString = "-i"
-        case .fullScreen: modeString = ""
-        case .window: modeString = "-w"
-        default: modeString = "-i"
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            ScreenshotService.shared.saveImage(image, to: url)
+            toastMessage = "已保存图片"
+            showToast = true
         }
-        
-        if let image = await screenshotService.captureWithDelay(seconds: delaySeconds, mode: modeString) {
-            showAllWindows()
-            currentImage = image
-            await performOCR(on: image)
-            selectedTab = 1
-        } else {
-            showAllWindows()
-            errorMessage = "延时截图失败"
-            isProcessing = false
-        }
+    }
+    
+    func reset() {
+        capturedImage = nil
+        showEditor = false
+        ocrResults = []
+        recognizedText = ""
     }
     
     private func hideAllWindows() {
@@ -277,550 +238,423 @@ class OCRViewModel: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         hiddenWindows.removeAll()
     }
-    
-    private func performOCR(on image: NSImage) async {
-        isProcessing = true
-        errorMessage = nil
-        
-        do {
-            let results = try await ocrService.recognizeText(from: image)
-            
-            if results.isEmpty {
-                errorMessage = "未识别到文字"
-            } else {
-                ocrResults = results
-                recognizedText = results.map { $0.text }.joined(separator: "\n")
-                
-                let totalConfidence = results.reduce(0) { $0 + $1.confidence }
-                averageConfidence = totalConfidence / Float(results.count)
-                
-                toastMessage = "识别成功，共 \(results.count) 行文字"
-                showSuccessToast = true
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        
-        isProcessing = false
-    }
-    
-    func copyToClipboard() {
-        guard !recognizedText.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(recognizedText, forType: .string)
-        toastMessage = "已复制文字"
-        showSuccessToast = true
-    }
-    
-    func saveImage() {
-        guard let image = currentImage else { return }
-        screenshotService.saveImage(image)
-    }
-    
-    func copyImage() {
-        guard let image = currentImage else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([image])
-        toastMessage = "已复制图片"
-        showSuccessToast = true
-    }
-    
-    func clear() {
-        recognizedText = ""
-        ocrResults = []
-        currentImage = nil
-        errorMessage = nil
-        averageConfidence = 0
-        selectedTab = 0
-    }
 }
 
-// MARK: - Main View
-struct OCRScreenshotView: View {
-    @StateObject private var viewModel = OCRViewModel()
+// MARK: - 主视图
+struct ScreenshotToolView: View {
+    @StateObject private var viewModel = ScreenshotViewModel()
     @Environment(\.dismiss) var dismiss
-    @State private var showDelayPicker = false
     
     var body: some View {
         ZStack {
-            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+            if viewModel.showEditor, let image = viewModel.capturedImage {
+                EditorView(viewModel: viewModel, image: image)
+            } else {
+                MainCaptureView(viewModel: viewModel, dismiss: dismiss)
+            }
+            
+            if viewModel.showToast {
+                ToastView(message: viewModel.toastMessage)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation {
+                                viewModel.showToast = false
+                            }
+                        }
+                    }
+            }
+        }
+        .frame(width: 420, height: 560)
+        .focusable(false)
+    }
+}
+
+// MARK: - 主截图界面
+struct MainCaptureView: View {
+    @ObservedObject var viewModel: ScreenshotViewModel
+    let dismiss: DismissAction
+    
+    var body: some View {
+        ZStack {
+            VisualEffectBlurOCR(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                headerBar
-                Divider()
-                
-                // 标签切换
-                tabBar
-                Divider()
-                
-                // 内容区域
-                TabView(selection: $viewModel.selectedTab) {
-                    captureView
-                        .tag(0)
-                    
-                    resultView
-                        .tag(1)
-                }
-                .tabViewStyle(.automatic)
-            }
-        }
-        .frame(width: 480, height: 620)
-        .focusable(false)
-        .overlay(alignment: .top) {
-            if viewModel.showSuccessToast {
-                toastView
-            }
-        }
-        .sheet(isPresented: $showDelayPicker) {
-            DelayPickerView(seconds: $viewModel.delaySeconds)
-        }
-    }
-    
-    // MARK: - Header
-    private var headerBar: some View {
-        HStack {
-            Image(systemName: "camera.viewfinder")
-                .font(.system(size: 16))
-                .foregroundStyle(.blue.gradient)
-            
-            Text("智能截图")
-                .font(.system(size: 16, weight: .semibold))
-            
-            Spacer()
-            
-            if viewModel.currentImage != nil {
-                Button(action: viewModel.clear) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14))
-                }
-                .buttonStyle(.plain)
-                .help("清空")
-                .pointingHandCursor()
-            }
-            
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-    }
-    
-    // MARK: - Tab Bar
-    private var tabBar: some View {
-        HStack(spacing: 0) {
-            TabButton(title: "截图工具", icon: "camera.fill", isSelected: viewModel.selectedTab == 0) {
-                withAnimation {
-                    viewModel.selectedTab = 0
-                }
-            }
-            
-            TabButton(title: "识别结果", icon: "doc.text.fill", isSelected: viewModel.selectedTab == 1) {
-                withAnimation {
-                    viewModel.selectedTab = 1
-                }
-            }
-        }
-        .frame(height: 44)
-        .background(Color.black.opacity(0.05))
-    }
-    
-    // MARK: - Capture View
-    private var captureView: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 20) {
-                // 快速截图
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(icon: "bolt.fill", title: "快速截图", color: .blue)
-                    
-                    VStack(spacing: 10) {
-                        CaptureButton(
-                            icon: "crop",
-                            title: "区域截图",
-                            subtitle: "选择屏幕区域截图",
-                            color: .blue,
-                            isProcessing: viewModel.isProcessing
-                        ) {
-                            Task {
-                                await viewModel.captureAndRecognize(mode: .selection)
-                            }
-                        }
-                        
-                        HStack(spacing: 10) {
-                            CaptureButton(
-                                icon: "rectangle.fill",
-                                title: "全屏",
-                                subtitle: "整个屏幕",
-                                color: .purple,
-                                isCompact: true,
-                                isProcessing: viewModel.isProcessing
-                            ) {
-                                Task {
-                                    await viewModel.captureAndRecognize(mode: .fullScreen)
-                                }
-                            }
-                            
-                            CaptureButton(
-                                icon: "macwindow",
-                                title: "窗口",
-                                subtitle: "单个窗口",
-                                color: .indigo,
-                                isCompact: true,
-                                isProcessing: viewModel.isProcessing
-                            ) {
-                                Task {
-                                    await viewModel.captureAndRecognize(mode: .window)
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // 延时截图
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(icon: "timer", title: "延时截图", color: .orange)
-                    
-                    HStack(spacing: 12) {
-                        Button(action: { showDelayPicker = true }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "timer")
-                                    .font(.system(size: 14))
-                                Text("\(viewModel.delaySeconds) 秒")
-                                    .font(.system(size: 13, weight: .medium))
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 10))
-                            }
-                            .foregroundColor(.orange)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .pointingHandCursor()
-                        
-                        Button(action: {
-                            Task {
-                                await viewModel.delayedCapture(mode: .selection)
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 12))
-                                Text("开始")
-                                    .font(.system(size: 13, weight: .medium))
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.orange.gradient)
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isProcessing)
-                        .pointingHandCursor()
-                    }
-                }
-                
-                // 导入图片
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader(icon: "square.and.arrow.down", title: "导入图片", color: .green)
-                    
-                    HStack(spacing: 10) {
-                        CaptureButton(
-                            icon: "doc.on.clipboard",
-                            title: "剪贴板",
-                            subtitle: "粘贴图片",
-                            color: .cyan,
-                            isCompact: true,
-                            isProcessing: viewModel.isProcessing
-                        ) {
-                            Task {
-                                await viewModel.captureAndRecognize(mode: .clipboard)
-                            }
-                        }
-                        
-                        CaptureButton(
-                            icon: "folder",
-                            title: "文件",
-                            subtitle: "选择文件",
-                            color: .green,
-                            isCompact: true,
-                            isProcessing: viewModel.isProcessing
-                        ) {
-                            Task {
-                                await viewModel.captureAndRecognize(mode: .file)
-                            }
-                        }
-                    }
-                }
-                
-                // 图片预览
-                if let image = viewModel.currentImage {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionHeader(icon: "photo", title: "图片预览", color: .pink)
-                        
-                        ZStack(alignment: .topTrailing) {
-                            Image(nsImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxHeight: 180)
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                )
-                            
-                            // 图片操作按钮
-                            HStack(spacing: 8) {
-                                SmallIconButton(icon: "doc.on.doc", color: .blue) {
-                                    viewModel.copyImage()
-                                }
-                                
-                                SmallIconButton(icon: "square.and.arrow.down", color: .green) {
-                                    viewModel.saveImage()
-                                }
-                            }
-                            .padding(8)
-                        }
-                    }
-                }
-                
-                Spacer(minLength: 20)
-            }
-            .padding(20)
-        }
-    }
-    
-    // MARK: - Result View
-    private var resultView: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 20) {
-                if viewModel.isProcessing {
-                    loadingView
-                } else if let error = viewModel.errorMessage {
-                    errorView(error)
-                } else if !viewModel.recognizedText.isEmpty {
-                    resultContent
-                } else {
-                    emptyResultView
-                }
-            }
-            .padding(20)
-        }
-    }
-    
-    private var resultContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 统计信息
-            HStack(spacing: 12) {
-                StatCard(icon: "doc.text", label: "文字行数", value: "\(viewModel.ocrResults.count)", color: .blue)
-                StatCard(icon: "checkmark.circle", label: "识别准确度", value: "\(Int(viewModel.averageConfidence * 100))%", color: confidenceColor)
-            }
-            
-            // 识别文字
-            VStack(alignment: .leading, spacing: 12) {
+                // 标题栏
                 HStack {
-                    Text("识别文字")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.secondary)
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.blue.gradient)
+                    
+                    Text("智能截图")
+                        .font(.system(size: 16, weight: .semibold))
                     
                     Spacer()
                     
-                    Button(action: viewModel.copyToClipboard) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.on.doc")
-                            Text("复制")
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursorOCR()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                
+                Divider()
+                
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        // 快速截图
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionTitle(icon: "bolt.fill", title: "快速截图", color: .blue)
+                            
+                            CaptureModeButton(
+                                mode: .area,
+                                isProcessing: viewModel.isCapturing
+                            ) {
+                                Task {
+                                    await viewModel.startCapture(mode: .area)
+                                }
+                            }
+                            
+                            HStack(spacing: 12) {
+                                CaptureModeButton(
+                                    mode: .fullscreen,
+                                    isCompact: true,
+                                    isProcessing: viewModel.isCapturing
+                                ) {
+                                    Task {
+                                        await viewModel.startCapture(mode: .fullscreen)
+                                    }
+                                }
+                                
+                                CaptureModeButton(
+                                    mode: .window,
+                                    isCompact: true,
+                                    isProcessing: viewModel.isCapturing
+                                ) {
+                                    Task {
+                                        await viewModel.startCapture(mode: .window)
+                                    }
+                                }
+                            }
                         }
-                        .font(.system(size: 11))
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(6)
+                        
+                        // 延时截图
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionTitle(icon: "timer", title: "延时截图", color: .orange)
+                            
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    viewModel.showDelayPicker = true
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "timer")
+                                            .font(.system(size: 14))
+                                        Text("\(viewModel.delaySeconds) 秒")
+                                            .font(.system(size: 13, weight: .medium))
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 10))
+                                    }
+                                    .foregroundColor(.orange)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.orange.opacity(0.15))
+                                    .cornerRadius(10)
+                                }
+                                .buttonStyle(.plain)
+                                .pointingHandCursor()
+                                
+                                Button(action: {
+                                    Task {
+                                        await viewModel.startCapture(mode: .timed)
+                                    }
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 12))
+                                        Text("开始")
+                                            .font(.system(size: 13, weight: .medium))
+                                    }
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.orange.gradient)
+                                    .cornerRadius(10)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(viewModel.isCapturing)
+                                .pointingHandCursor()
+                            }
+                        }
+                        
+                        // 使用说明
+                        VStack(spacing: 16) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.blue.gradient)
+                            
+                            VStack(spacing: 8) {
+                                Text("截图后可以：")
+                                    .font(.system(size: 13, weight: .semibold))
+                                
+                                VStack(alignment: .leading, spacing: 6) {
+                                    FeatureRow(icon: "wand.and.stars", text: "智能文字识别 (OCR)")
+                                    FeatureRow(icon: "pencil.tip.crop.circle", text: "添加标注和马赛克")
+                                    FeatureRow(icon: "doc.on.doc", text: "复制图片或文字")
+                                    FeatureRow(icon: "square.and.arrow.down", text: "保存到文件")
+                                }
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 30)
+                    }
+                    .padding(20)
+                }
+            }
+        }
+        .sheet(isPresented: $viewModel.showDelayPicker) {
+            DelayPickerSheet(seconds: $viewModel.delaySeconds)
+        }
+    }
+}
+
+// MARK: - 编辑器视图
+struct EditorView: View {
+    @ObservedObject var viewModel: ScreenshotViewModel
+    let image: NSImage
+    @State private var selectedTool: EditTool?
+    @State private var showOCRResult = false
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(1)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // 顶部工具栏
+                HStack(spacing: 16) {
+                    Button(action: viewModel.reset) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12))
+                            Text("取消")
+                                .font(.system(size: 13))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.15))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    
+                    Spacer()
+                    
+                    Text("编辑截图")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        viewModel.saveImage()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12))
+                            Text("完成")
+                                .font(.system(size: 13))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.gradient)
+                        .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
                     .pointingHandCursor()
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
                 
-                ScrollView {
-                    Text(viewModel.recognizedText)
-                        .font(.system(size: 13))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
+                // 图片预览区域
+                ScrollView([.horizontal, .vertical]) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: 400)
                 }
-                .frame(height: 250)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(10)
-            }
-            
-            // 详细结果
-            if viewModel.ocrResults.count > 1 {
-                DisclosureGroup {
-                    VStack(spacing: 8) {
-                        ForEach(viewModel.ocrResults) { result in
-                            HStack(spacing: 10) {
-                                Text(result.text)
-                                    .font(.system(size: 12))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                
-                                Text("\(result.confidencePercentage)%")
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                            }
-                            .padding(.vertical, 6)
-                            
-                            if result.id != viewModel.ocrResults.last?.id {
-                                Divider()
+                .frame(maxHeight: .infinity)
+                
+                // 底部工具栏
+                VStack(spacing: 12) {
+                    // 编辑工具
+                    HStack(spacing: 8) {
+                        ForEach([EditTool.arrow, .rectangle, .text, .mosaic], id: \.self) { tool in
+                            ToolButton(
+                                icon: tool.icon,
+                                label: tool.rawValue,
+                                isSelected: selectedTool == tool
+                            ) {
+                                selectedTool = tool
                             }
                         }
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet")
-                            .font(.system(size: 11))
-                        Text("查看详细信息 (\(viewModel.ocrResults.count) 行)")
-                            .font(.system(size: 12))
+                    
+                    Divider()
+                        .background(Color.white.opacity(0.2))
+                    
+                    // 操作按钮
+                    HStack(spacing: 8) {
+                        ActionButtonOCR(icon: "text.viewfinder", label: "OCR", color: .blue) {
+                            Task {
+                                await viewModel.performOCR()
+                                showOCRResult = true
+                            }
+                        }
+                        
+                        ActionButtonOCR(icon: "doc.on.doc", label: "复制", color: .green) {
+                            viewModel.copyImage()
+                        }
+                        
+                        ActionButtonOCR(icon: "square.and.arrow.down", label: "保存", color: .orange) {
+                            viewModel.saveImage()
+                        }
                     }
-                    .foregroundColor(.blue)
                 }
-                .padding(12)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(10)
+                .padding(16)
+                .background(
+                    VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                        .opacity(1)
+                )
+            }
+            
+            // OCR 结果浮窗
+            if showOCRResult && !viewModel.recognizedText.isEmpty {
+                OCRResultPanel(
+                    text: viewModel.recognizedText,
+                    confidence: viewModel.ocrResults.isEmpty ? 0 : viewModel.ocrResults.map { $0.confidence }.reduce(0, +) / Float(viewModel.ocrResults.count),
+                    onCopy: {
+                        viewModel.copyText()
+                    },
+                    onClose: {
+                        showOCRResult = false
+                    }
+                )
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
     }
+}
+
+// MARK: - OCR 结果面板
+struct OCRResultPanel: View {
+    let text: String
+    let confidence: Float
+    let onCopy: () -> Void
+    let onClose: () -> Void
     
-    private var confidenceColor: Color {
-        let confidence = viewModel.averageConfidence
-        if confidence > 0.9 { return .green }
-        if confidence > 0.7 { return .orange }
-        return .red
-    }
-    
-    private var emptyResultView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 56))
-                .foregroundStyle(.gray.gradient)
-            
-            Text("还没有识别结果")
-                .font(.system(size: 15, weight: .medium))
-            
-            Text("使用左侧的截图工具开始识别")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-            
-            Button(action: {
-                withAnimation {
-                    viewModel.selectedTab = 0
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 标题栏
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "text.viewfinder")
+                        .font(.system(size: 14))
+                        .foregroundColor(.blue)
+                    
+                    Text("识别结果")
+                        .font(.system(size: 14, weight: .semibold))
                 }
-            }) {
+                
+                Spacer()
+                
+                Button(action: onClose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+            }
+            .padding(16)
+            
+            Divider()
+            
+            // 统计信息
+            HStack(spacing: 16) {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.left")
-                    Text("返回截图")
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 12))
+                        .foregroundColor(.blue)
+                    Text("\(text.components(separatedBy: "\n").count) 行")
+                        .font(.system(size: 11))
                 }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.blue)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.1))
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(.green)
+                    Text("\(Int(confidence * 100))%")
+                        .font(.system(size: 11))
+                }
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.white.opacity(0.05))
+            
+            // 文字内容
+            ScrollView {
+                Text(text)
+                    .font(.system(size: 12))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            }
+            
+            Divider()
+            
+            // 操作按钮
+            Button(action: onCopy) {
+                HStack {
+                    Image(systemName: "doc.on.doc")
+                    Text("复制文字")
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.blue.gradient)
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
+            .padding(16)
             .pointingHandCursor()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 60)
-    }
-    
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.2)
-            Text("正在识别...")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 80)
-    }
-    
-    private func errorView(_ message: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange.gradient)
-            Text(message)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
-    }
-    
-    private var toastView: some View {
-        Text("✓ \(viewModel.toastMessage)")
-            .font(.system(size: 12))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Color.green.opacity(0.9))
-            .foregroundColor(.white)
-            .cornerRadius(18)
-            .padding(.top, 70)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.3).delay(2)) {
-                    viewModel.showSuccessToast = false
-                }
-            }
+        .frame(width: 280)
+        .background(
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(0.98)
+        )
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.3), radius: 20)
+        .padding(.trailing, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
     }
 }
 
-// MARK: - Tab Button
-struct TabButton: View {
-    let title: String
-    let icon: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-            }
-            .foregroundColor(isSelected ? .blue : .secondary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .background(isSelected ? Color.white.opacity(0.1) : Color.clear)
-            .overlay(
-                Rectangle()
-                    .fill(isSelected ? Color.blue : Color.clear)
-                    .frame(height: 2),
-                alignment: .bottom
-            )
-        }
-        .buttonStyle(.plain)
-        .pointingHandCursor()
-    }
-}
+// MARK: - 组件
 
-// MARK: - Section Header
-struct SectionHeader: View {
+struct SectionTitle: View {
     let icon: String
     let title: String
     let color: Color
@@ -830,72 +664,43 @@ struct SectionHeader: View {
             Image(systemName: icon)
                 .font(.system(size: 12))
                 .foregroundColor(color)
-            
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.primary)
         }
     }
 }
 
-// MARK: - Capture Button
-struct CaptureButton: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let color: Color
+struct CaptureModeButton: View {
+    let mode: CaptureMode
     var isCompact: Bool = false
     var isProcessing: Bool = false
     let action: () -> Void
     
-    @State private var isPressed = false
-    
     var body: some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                isPressed = true
-            }
-            action()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation {
-                    isPressed = false
-                }
-            }
-        }) {
+        Button(action: action) {
             HStack(spacing: isCompact ? 8 : 12) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.2))
+                        .fill(mode.color.opacity(0.2))
                         .frame(width: isCompact ? 40 : 48, height: isCompact ? 40 : 48)
                     
-                    Image(systemName: icon)
+                    Image(systemName: mode.icon)
                         .font(.system(size: isCompact ? 18 : 20))
-                        .foregroundStyle(color.gradient)
+                        .foregroundStyle(mode.color.gradient)
                 }
                 
-                if !isCompact {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        Text(subtitle)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(mode.rawValue)
+                        .font(.system(size: isCompact ? 12 : 14, weight: .semibold))
+                    
+                    if !isCompact {
+                        Text("点击开始截图")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
-                    Spacer()
-                } else {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        Text(subtitle)
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
                 }
+                
+                Spacer()
                 
                 if isProcessing {
                     ProgressView()
@@ -908,15 +713,12 @@ struct CaptureButton: View {
             }
             .padding(isCompact ? 12 : 14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.05))
-            )
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(color.opacity(0.3), lineWidth: 1)
+                    .stroke(mode.color.opacity(0.3), lineWidth: 1)
             )
-            .scaleEffect(isPressed ? 0.97 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(isProcessing)
@@ -924,91 +726,86 @@ struct CaptureButton: View {
     }
 }
 
-// MARK: - Stat Card
-struct StatCard: View {
+struct FeatureRow: View {
     let icon: String
-    let label: String
-    let value: String
-    let color: Color
+    let text: String
     
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(color.gradient)
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(color.opacity(0.15)))
-            
-            VStack(alignment: .leading, spacing: 3) {
-                Text(label)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                
-                Text(value)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.primary)
-                    .monospacedDigit()
-            }
-            
-            Spacer()
+                .font(.system(size: 12))
+                .frame(width: 20)
+            Text(text)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.05))
-        )
     }
 }
 
-// MARK: - Small Icon Button
-struct SmallIconButton: View {
+struct ToolButton: View {
     let icon: String
-    let color: Color
+    let label: String
+    var isSelected: Bool = false
     let action: () -> Void
-    
-    @State private var isHovered = false
     
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundColor(.white)
-                .frame(width: 28, height: 28)
-                .background(
-                    Circle()
-                        .fill(color.opacity(isHovered ? 0.9 : 0.7))
-                )
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                Text(label)
+                    .font(.system(size: 10))
+            }
+            .foregroundColor(isSelected ? .blue : .white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(isSelected ? Color.blue.opacity(0.2) : Color.white.opacity(0.1))
+            .cornerRadius(10)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
         .pointingHandCursor()
     }
 }
 
-// MARK: - Delay Picker View
-struct DelayPickerView: View {
+struct ActionButtonOCR: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                Text(label)
+                    .font(.system(size: 10))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(color.gradient)
+            .cornerRadius(10)
+        }
+        .buttonStyle(.plain)
+        .pointingHandCursor()
+    }
+}
+
+struct DelayPickerSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var seconds: Int
-    
-    let delayOptions = [3, 5, 10, 15, 30]
+    let options = [3, 5, 10, 15, 30]
     
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 标题
                 HStack {
-                    Text("选择延时时长")
+                    Text("延时时长")
                         .font(.system(size: 16, weight: .semibold))
-                    
                     Spacer()
-                    
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 18))
@@ -1017,55 +814,91 @@ struct DelayPickerView: View {
                     .buttonStyle(.plain)
                     .pointingHandCursor()
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
+                .padding(20)
                 
                 Divider()
                 
-                // 选项
                 VStack(spacing: 0) {
-                    ForEach(delayOptions, id: \.self) { option in
+                    ForEach(options, id: \.self) { option in
                         Button(action: {
                             seconds = option
                             dismiss()
                         }) {
                             HStack {
                                 Image(systemName: "timer")
-                                    .font(.system(size: 14))
                                     .foregroundColor(.orange)
-                                
                                 Text("\(option) 秒")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.primary)
-                                
                                 Spacer()
-                                
                                 if seconds == option {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold))
                                         .foregroundColor(.blue)
                                 }
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 14)
+                            .font(.system(size: 14))
+                            .padding(16)
                             .background(seconds == option ? Color.blue.opacity(0.1) : Color.clear)
                         }
                         .buttonStyle(.plain)
                         .pointingHandCursor()
                         
-                        if option != delayOptions.last {
-                            Divider()
-                                .padding(.horizontal, 20)
+                        if option != options.last {
+                            Divider().padding(.leading, 52)
                         }
                     }
                 }
-                .padding(.vertical, 8)
             }
         }
-        .frame(width: 260, height: 280)
+        .frame(width: 260, height: 300)
         .focusable(false)
     }
 }
+
+struct ToastView: View {
+    let message: String
+    
+    var body: some View {
+        Text("✓ \(message)")
+            .font(.system(size: 12))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.green.opacity(0.9))
+            .foregroundColor(.white)
+            .cornerRadius(18)
+            .padding(.top, 70)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+struct VisualEffectBlurOCR: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+    
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
+extension View {
+    func pointingHandCursorOCR() -> some View {
+        self.onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+}
+
 #Preview {
-    OCRScreenshotView()
+    ScreenshotToolView()
 }

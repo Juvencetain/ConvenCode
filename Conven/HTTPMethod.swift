@@ -401,7 +401,7 @@ struct HTTPRequestView: View {
     // MARK: - Background
     private var backgroundView: some View {
         VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-            .opacity(0.95)
+            .opacity(1)
             .ignoresSafeArea()
     }
     
@@ -865,7 +865,7 @@ struct SaveRequestDialog: View {
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 20) {
@@ -908,7 +908,7 @@ struct SavedRequestsView: View {
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {

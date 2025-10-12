@@ -27,7 +27,7 @@ struct ClipboardHistoryView: View {
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -65,7 +65,7 @@ struct ClipboardHistoryView: View {
                 copyToClipboard(item)
                 selectedItem = nil
             })
-        }
+        }.focusable(false)
     }
     
     // MARK: - Header
@@ -571,7 +571,7 @@ struct DetailView: View {
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {

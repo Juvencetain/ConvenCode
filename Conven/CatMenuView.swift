@@ -9,6 +9,7 @@ struct CatMenuView: View {
     @State private var showAbout = false
     @State private var showManageTools = false
     @State private var showQuitConfirmation = false
+    @State private var showDetailStats = false
     @State private var pinnedTools: [AppTool] = []
     
     var body: some View {
@@ -62,6 +63,15 @@ struct CatMenuView: View {
                 
                 Divider()
                     .padding(.horizontal, 16)
+                                
+                if viewModel.isAlive {
+                    UsageStatsCard()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 12)
+                }
+                
+                Divider()
+                    .padding(.horizontal, 16)
                 
                 // 底部菜单
                 bottomMenu
@@ -74,6 +84,9 @@ struct CatMenuView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showDetailStats) {
+            UsageStatisticsDetailView()
         }
         .sheet(isPresented: $showTools) {
             ToolsMenuView()

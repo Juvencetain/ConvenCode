@@ -54,7 +54,7 @@ class ToolsManager {
         AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard),
         AppTool(id: "ip", name: "IP 地址查询", icon: "network", color: .cyan, type: .ipLookup),
         AppTool(id: "http", name: "HTTP 请求", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest),
-        AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
+//        AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
         AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor),
         AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json),
         AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator),
@@ -90,10 +90,10 @@ class ToolsManager {
             view = AnyView(JSONFormatterView())
             size = NSSize(width: 420, height: 560)
         case .ocr:
-            view = AnyView(OCRScreenshotView())
+            view = AnyView(ScreenshotToolView())
             size = NSSize(width: 420, height: 560)
         case .calculator:
-            view = AnyView(GuideView())
+            view = AnyView(CalculatorView())
             size = NSSize(width: 420, height: 560)
         case .translator:
             view = AnyView(GuideView())
@@ -298,7 +298,7 @@ struct ManageToolsView: View {
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {

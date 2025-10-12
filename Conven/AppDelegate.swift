@@ -147,6 +147,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // 初始化 Core Data
         _ = PersistenceController.shared
         
+        // 初始化使用统计（会自动记录一次打开）
+        UsageStatisticsService.shared.loadStatistics()
+        print("✅ 使用统计系统已初始化")
+        
         // 初始化 ViewModel
         catViewModel = CatViewModel()
         
@@ -234,6 +238,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             popover.performClose(nil)
             self.popover = nil
         } else {
+            UsageStatisticsService.shared.recordAppOpen()
             // 创建新的视图实例
             let menuView = CatMenuView(viewModel: catViewModel)
             

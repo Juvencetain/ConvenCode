@@ -16,7 +16,7 @@ struct CatStatisticsView: View {
     var body: some View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(0.95)
+                .opacity(1)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {

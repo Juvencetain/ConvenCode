@@ -61,7 +61,7 @@ extension VisualEffectBlur {
                 .padding()
                 .background(
                     VisualEffectBlur.menuBar
-                        .opacity(0.95)
+                        .opacity(1)
                         .cornerRadius(10)
                 )
             

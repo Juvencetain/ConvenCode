@@ -19,8 +19,7 @@ class CatViewModel: ObservableObject {
     @Published var totalCleanCount: Int
     
     // MARK: - Private Properties
-    private var timer: Timer?
-    private var aiTimer: Timer?
+    private var timer: Timer? // 用于属性衰减的计时器
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
     private let aiAssistant: CatAIAssistant = DefaultCatAI()
@@ -65,7 +64,7 @@ class CatViewModel: ObservableObject {
         
         if isAlive {
             startTimer()
-            startAITimer()
+            scheduleDailyAINotifications() // 注册每日定时AI通知
         }
         
         setupSubscribers()
@@ -92,7 +91,7 @@ class CatViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Notification System
+    // MARK: - Low Stat Notification System
     private func notifyIfLow(_ statName: String, value: Double, message: String) {
         guard value < CatConfig.Notification.lowValueThreshold else { return }
         
@@ -113,32 +112,55 @@ class CatViewModel: ObservableObject {
             }
         }
     }
-    
-    // MARK: - AI Notification Timer
-    private func startAITimer() {
+
+    // MARK: - AI Notification Scheduling
+    private func scheduleDailyAINotifications() {
         guard CatConfig.Notification.aiPushEnabled else { return }
         
-        aiTimer?.invalidate()
-        aiTimer = Timer.scheduledTimer(withTimeInterval: CatConfig.Notification.aiPushInterval, repeats: true) { [weak self] _ in
-            self?.sendAIDailyMessage()
+        let center = UNUserNotificationCenter.current()
+        // 清除旧的每日 AI 通知，防止重复注册
+        center.getPendingNotificationRequests { requests in
+            let identifiers = requests.filter { $0.identifier.hasPrefix("ai_daily_") }.map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            print("🧹 清除了 \(identifiers.count) 个旧的AI每日通知。")
         }
-    }
-    
-    private func sendAIDailyMessage() {
-        guard aiAssistant.shouldSendNotification() else { return }
         
-        let content = UNMutableNotificationContent()
-        content.title = "\(catName)的日常"
-        content.body = aiAssistant.generateDailyMessage()
-        content.sound = .default
-        
-        let request = UNNotificationRequest(
-            identifier: "ai_daily_\(UUID().uuidString)",
-            content: content,
-            trigger: nil
-        )
-        
-        UNUserNotificationCenter.current().add(request)
+        for timeString in CatConfig.Notification.aiPushTime {
+            let components = timeString.split(separator: ":")
+            guard components.count == 2,
+                  let hour = Int(components[0]),
+                  let minute = Int(components[1]) else {
+                continue
+            }
+            
+            var dateComponents = DateComponents()
+            dateComponents.hour = hour
+            dateComponents.minute = minute
+            
+            // 使用 AI 助手生成随机消息
+            let message = aiAssistant.generateDailyMessage()
+            
+            let content = UNMutableNotificationContent()
+            content.title = "\(catName)的日常"
+            content.body = message
+            content.sound = .default
+            
+            // 创建每日重复的触发器
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+            
+            // 为每个通知创建唯一的标识符
+            let identifier = "ai_daily_\(hour)_\(minute)"
+            
+            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+            
+            center.add(request) { error in
+                if let error = error {
+                    print("❌ 注册每日AI通知失败 (\(timeString)): \(error.localizedDescription)")
+                } else {
+                    print("✅ 成功注册每日AI通知，将在每天 \(timeString) 推送: \(message)")
+                }
+            }
+        }
     }
     
     // MARK: - Data Persistence
@@ -217,7 +239,6 @@ class CatViewModel: ObservableObject {
         if zeroStatsCount >= CatConfig.GamePlay.deathThreshold {
             isAlive = false
             timer?.invalidate()
-            aiTimer?.invalidate()
         }
     }
     
@@ -259,7 +280,7 @@ class CatViewModel: ObservableObject {
         totalCleanCount = 0
         
         startTimer()
-        startAITimer()
+        scheduleDailyAINotifications() // 重启时也重新注册通知
         saveData()
     }
     

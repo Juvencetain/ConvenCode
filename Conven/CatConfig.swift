@@ -99,7 +99,7 @@ struct CatConfig {
         // AI推送配置
         static var aiPushEnabled: Bool = true
         static var aiPushInterval: TimeInterval = 3600 // 1小时
-        static let aiPushTime: [String] = ["09:00", "12:00", "18:00", "21:00"]
+        static let aiPushTime: [String] = ["09:00", "12:00", "18:20", "21:00"]
         
         // AI推送文案模板（后续可接入真实AI）
         static let aiDailyMessages: [String] = [
