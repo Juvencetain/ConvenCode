@@ -9,7 +9,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     let type: ToolType
     
     enum ToolType: String, Codable {
-        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator
+        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr
     }
     
     // Codable 支持 Color
@@ -45,22 +45,88 @@ struct AppTool: Identifiable, Codable, Equatable {
     }
 }
 
+// MARK: - 统一工具管理器
+class ToolsManager {
+    static let shared = ToolsManager()
+    
+    // 所有可用工具的统一定义（单一数据源）
+    let allTools: [AppTool] = [
+        AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard),
+        AppTool(id: "ip", name: "IP 地址查询", icon: "network", color: .cyan, type: .ipLookup),
+        AppTool(id: "http", name: "HTTP 请求", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest),
+        AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
+        AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor),
+        AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json),
+        AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator),
+        AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator)
+    ]
+    
+    // 根据类型获取工具
+    func getTool(by type: AppTool.ToolType) -> AppTool? {
+        return allTools.first { $0.type == type }
+    }
+    
+    // 打开工具窗口（统一的窗口打开逻辑）
+    func openToolWindow(_ type: AppTool.ToolType) {
+        let view: AnyView
+        let size: NSSize
+        
+        switch type {
+        case .clipboard:
+            let clipboardView = ClipboardHistoryView()
+                .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+            view = AnyView(clipboardView)
+            size = NSSize(width: 420, height: 560)
+        case .ipLookup:
+            view = AnyView(IPLookupView())
+            size = NSSize(width: 420, height: 560)
+        case .httpRequest:
+            view = AnyView(HTTPRequestView())
+            size = NSSize(width: 420, height: 560)
+        case .dataProcessor:
+            view = AnyView(DataProcessorView())
+            size = NSSize(width: 420, height: 560)
+        case .json:
+            view = AnyView(JSONFormatterView())
+            size = NSSize(width: 420, height: 560)
+        case .ocr:
+            view = AnyView(OCRScreenshotView())
+            size = NSSize(width: 420, height: 560)
+        case .calculator:
+            view = AnyView(GuideView())
+            size = NSSize(width: 420, height: 560)
+        case .translator:
+            view = AnyView(GuideView())
+            size = NSSize(width: 420, height: 560)
+        }
+        
+        let hostingController = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hostingController)
+        
+        window.title = ""
+        window.titlebarAppearsTransparent = true
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.setContentSize(size)
+        window.center()
+        window.level = .floating
+        window.makeKeyAndOrderFront(nil)
+        
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
 // MARK: - 固定工具管理器
 class PinnedToolsManager {
     static let shared = PinnedToolsManager()
     private let storageKey = "pinned_tools"
     private let maxPinnedTools = 6
     
-    // 所有可用工具
-    let allTools: [AppTool] = [
-        AppTool(id: "clipboard", name: "剪贴板", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard),
-        AppTool(id: "ip", name: "IP查询", icon: "network", color: .cyan, type: .ipLookup),
-        AppTool(id: "http", name: "HTTP", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest),
-        AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor),
-        AppTool(id: "json", name: "JSON", icon: "curlybraces.square.fill", color: .orange, type: .json),
-        AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator),
-        AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator)
-    ]
+    // 获取所有工具（从统一管理器）
+    var allTools: [AppTool] {
+        return ToolsManager.shared.allTools
+    }
     
     func load() -> [AppTool] {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
@@ -323,6 +389,7 @@ struct ManageToolsView: View {
             }
         }
         .frame(width: 420, height: 560)
+        .focusable(false)
         .onAppear {
             updateAvailableTools()
         }
@@ -347,7 +414,7 @@ struct ManageToolsView: View {
     
     private func updateAvailableTools() {
         let pinnedIds = Set(pinnedTools.map { $0.id })
-        availableTools = PinnedToolsManager.shared.allTools.filter { !pinnedIds.contains($0.id) }
+        availableTools = ToolsManager.shared.allTools.filter { !pinnedIds.contains($0.id) }
     }
 }
 
@@ -388,6 +455,8 @@ struct ToolManageCard: View {
                 Text(tool.name)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 100)
@@ -416,6 +485,6 @@ struct ToolManageCard: View {
 
 #Preview {
     ManageToolsView(pinnedTools: .constant([
-        AppTool(id: "clipboard", name: "剪贴板", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard)
+        AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard)
     ]))
 }

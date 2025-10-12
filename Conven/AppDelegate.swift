@@ -124,6 +124,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var gifAnimator: GifAnimator?
     private var clipboardMonitor: ClipboardMonitor?
     
+    // 添加事件监听器
+    private var eventMonitor: Any?
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 请求通知权限
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
@@ -179,25 +182,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         clipboardMonitor?.startMonitoring()
         print("✅ 剪贴板监控已启动")
         
-        // 注册通知，当应用不再是活动窗口时，关闭 popover
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(closePopover),
-            name: NSApplication.didResignActiveNotification,
-            object: nil
-        )
+        // 设置全局事件监听器 - 监听鼠标点击和键盘事件
+        setupEventMonitor()
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         clipboardMonitor?.stopMonitoring()
         print("⏹️ 剪贴板监控已停止")
         
-        // 移除通知监听
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSApplication.didResignActiveNotification,
-            object: nil
-        )
+        // 移除事件监听器
+        if let eventMonitor = eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+    }
+    
+    // MARK: - 设置事件监听器
+    private func setupEventMonitor() {
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self else { return }
+            
+            // 如果 popover 正在显示
+            if let popover = self.popover, popover.isShown {
+                // 检查点击是否在 popover 之外
+                if !self.isClickInsidePopover(event) {
+                    self.closePopover()
+                }
+            }
+        }
+    }
+    
+    // MARK: - 检查点击是否在 popover 内部
+    private func isClickInsidePopover(_ event: NSEvent) -> Bool {
+        guard let popover = popover,
+              let contentView = popover.contentViewController?.view,
+              let window = contentView.window else {
+            return false
+        }
+        
+        // 将屏幕坐标转换为窗口坐标
+        let locationInWindow = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        
+        // 检查点击是否在内容视图范围内
+        return contentView.frame.contains(locationInWindow)
     }
     
     @objc func togglePopover() {

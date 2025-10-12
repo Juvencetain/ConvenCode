@@ -7,6 +7,9 @@ struct CatMenuView: View {
     @State private var showTools = false
     @State private var showStatistics = false
     @State private var showAbout = false
+    @State private var showManageTools = false
+    @State private var showQuitConfirmation = false
+    @State private var pinnedTools: [AppTool] = []
     
     var body: some View {
         ZStack {
@@ -41,6 +44,22 @@ struct CatMenuView: View {
                     restartSection
                 }
                 
+                // 固定工具栏（在操作按钮后面）
+                if viewModel.isAlive && !pinnedTools.isEmpty {
+                    Divider()
+                        .padding(.horizontal, 16)
+                    
+                    PinnedToolsBar(
+                        pinnedTools: $pinnedTools,
+                        onToolTap: { tool in
+                            openToolWindow(tool.type)
+                        },
+                        onManage: {
+                            showManageTools = true
+                        }
+                    )
+                }
+                
                 Divider()
                     .padding(.horizontal, 16)
                 
@@ -49,6 +68,10 @@ struct CatMenuView: View {
             }
         }
         .frame(width: CatConfig.UI.menuWidth)
+        .focusable(false)
+        .onAppear {
+            pinnedTools = PinnedToolsManager.shared.load()
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView(viewModel: viewModel)
         }
@@ -57,6 +80,17 @@ struct CatMenuView: View {
         }
         .sheet(isPresented: $showStatistics) {
             CatStatisticsView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showManageTools) {
+            ManageToolsView(pinnedTools: $pinnedTools)
+        }
+        .alert("确定要退出吗？", isPresented: $showQuitConfirmation) {
+            Button("取消", role: .cancel) { }
+            Button("退出", role: .destructive) {
+                NSApplication.shared.terminate(nil)
+            }
+        } message: {
+            Text("退出后小猫会继续在后台成长哦")
         }
     }
     
@@ -235,6 +269,15 @@ struct CatMenuView: View {
                 icon: "info.circle.fill",
                 label: "关于",
                 action: { showAbout = true }
+            )
+            
+            Divider()
+                .frame(height: 20)
+            
+            MenuButton(
+                icon: "power",
+                label: "退出",
+                action: { showQuitConfirmation = true }
             )
         }
         .frame(height: 44)
@@ -443,6 +486,7 @@ struct SettingsView: View {
             }
         }
         .frame(width: 380, height: 500)
+        .focusable(false)
         .sheet(isPresented: $showAvatarPicker) {
             AvatarPickerView(selectedAvatar: $selectedAvatar) {
                 saveAvatar()
@@ -679,6 +723,7 @@ struct AvatarPickerView: View {
             }
         }
         .frame(width: 420, height: 560)
+        .focusable(false)
     }
 }
 
@@ -817,21 +862,21 @@ struct MenuButton: View {
     }
 }
 
+// MARK: - CatMenuView 的工具打开方法
+extension CatMenuView {
+    func openToolWindow(_ type: AppTool.ToolType) {
+        // 使用统一的工具管理器
+        ToolsManager.shared.openToolWindow(type)
+    }
+}
+
 // MARK: - 工具菜单视图
 struct ToolsMenuView: View {
     @Environment(\.dismiss) var dismiss
     
-    let tools: [(icon: String, name: String, color: Color, viewType: ToolType)] = [
-        ("doc.on.clipboard.fill", "剪贴板历史", .blue, .clipboard),
-        ("network", "IP 地址查询", .cyan, .ipLookup),
-        ("arrow.left.arrow.right.circle", "HTTP 请求", .indigo, .httpRequest),
-        ("wrench.and.screwdriver.fill", "数据处理", .green, .dataProcessor),
-        ("curlybraces.square.fill", "JSON 工具", .orange, .json),
-        ("book.fill", "使用指南", .purple, .guide)
-    ]
-    
-    enum ToolType {
-        case clipboard, ipLookup, httpRequest, dataProcessor, json, guide
+    // 从统一的工具管理器获取所有工具
+    private var tools: [AppTool] {
+        ToolsManager.shared.allTools
     }
     
     var body: some View {
@@ -870,13 +915,14 @@ struct ToolsMenuView: View {
                         GridItem(.flexible()),
                         GridItem(.flexible())
                     ], spacing: 12) {
-                        ForEach(tools, id: \.name) { tool in
+                        ForEach(tools) { tool in
                             ToolCard(
                                 icon: tool.icon,
                                 name: tool.name,
                                 color: tool.color
                             ) {
-                                openTool(tool.viewType)
+                                // 使用统一的工具管理器打开窗口
+                                ToolsManager.shared.openToolWindow(tool.type)
                             }
                         }
                     }
@@ -885,49 +931,7 @@ struct ToolsMenuView: View {
             }
         }
         .frame(width: 380, height: 450)
-    }
-    
-    private func openTool(_ type: ToolType) {
-        let view: AnyView
-        let size: NSSize
-        
-        switch type {
-        case .clipboard:
-            let clipboardView = ClipboardHistoryView()
-                .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
-            view = AnyView(clipboardView)
-            size = NSSize(width: 420, height: 560)
-        case .ipLookup:
-            view = AnyView(IPLookupView())
-            size = NSSize(width: 420, height: 560)
-        case .httpRequest:
-            view = AnyView(HTTPRequestView())
-            size = NSSize(width: 420, height: 560)
-        case .dataProcessor:
-            view = AnyView(DataProcessorView())
-            size = NSSize(width: 420, height: 560)
-        case .json:
-            view = AnyView(JSONFormatterView())
-            size = NSSize(width: 420, height: 560)
-        case .guide:
-            view = AnyView(GuideView())
-            size = NSSize(width: 420, height: 560)
-        }
-        
-        let hostingController = NSHostingController(rootView: view)
-        let window = NSWindow(contentViewController: hostingController)
-        
-        window.title = ""
-        window.titlebarAppearsTransparent = true
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.setContentSize(size)
-        window.center()
-        window.level = .floating
-        window.makeKeyAndOrderFront(nil)
-        
-        NSApp.activate(ignoringOtherApps: true)
+        .focusable(false)
     }
 }
 

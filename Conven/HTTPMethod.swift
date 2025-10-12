@@ -3,7 +3,7 @@ import AppKit
 import Combine
 
 // MARK: - Models
-enum HTTPMethod: String, CaseIterable {
+enum HTTPMethod: String, CaseIterable, Codable {
     case GET, POST, PUT, DELETE, PATCH
     
     var color: Color {
@@ -17,17 +17,40 @@ enum HTTPMethod: String, CaseIterable {
     }
 }
 
-struct HTTPHeader: Identifiable, Equatable {
+struct HTTPHeader: Identifiable, Equatable, Codable {
     let id = UUID()
     var key: String
     var value: String
 }
 
-struct HTTPParam: Identifiable, Equatable {
+struct HTTPParam: Identifiable, Equatable, Codable {
     let id = UUID()
     var key: String
     var value: String
     var enabled: Bool = true
+}
+
+// MARK: - 保存的请求模型
+struct SavedRequest: Identifiable, Codable {
+    let id: UUID
+    var name: String
+    var method: HTTPMethod
+    var baseURL: String
+    var params: [HTTPParam]
+    var headers: [HTTPHeader]
+    var body: String
+    var createdAt: Date
+    
+    init(name: String, method: HTTPMethod, baseURL: String, params: [HTTPParam], headers: [HTTPHeader], body: String) {
+        self.id = UUID()
+        self.name = name
+        self.method = method
+        self.baseURL = baseURL
+        self.params = params
+        self.headers = headers
+        self.body = body
+        self.createdAt = Date()
+    }
 }
 
 struct HTTPResponse {
@@ -67,6 +90,26 @@ struct HTTPResponse {
     }
 }
 
+// MARK: - 请求存储管理器
+class RequestStorage {
+    static let shared = RequestStorage()
+    private let storageKey = "saved_http_requests"
+    
+    func save(_ requests: [SavedRequest]) {
+        if let encoded = try? JSONEncoder().encode(requests) {
+            UserDefaults.standard.set(encoded, forKey: storageKey)
+        }
+    }
+    
+    func load() -> [SavedRequest] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let requests = try? JSONDecoder().decode([SavedRequest].self, from: data) else {
+            return []
+        }
+        return requests
+    }
+}
+
 // MARK: - View Model
 @MainActor
 class HTTPRequestViewModel: ObservableObject {
@@ -83,6 +126,12 @@ class HTTPRequestViewModel: ObservableObject {
     @Published var showSuccessToast = false
     @Published var toastMessage = ""
     @Published var selectedTab = 0
+    
+    // 保存的请求
+    @Published var savedRequests: [SavedRequest] = []
+    @Published var showSaveDialog = false
+    @Published var showSavedRequests = false
+    @Published var requestName = ""
     
     private var requestTask: Task<Void, Never>?
     
@@ -107,6 +156,10 @@ class HTTPRequestViewModel: ObservableObject {
         ("获取 IP", "https://api.ipify.org", .GET, [HTTPParam(key: "format", value: "json")]),
         ("随机用户", "https://randomuser.me/api", .GET, [])
     ]
+    
+    init() {
+        loadSavedRequests()
+    }
     
     func addParam() {
         params.append(HTTPParam(key: "", value: "", enabled: true))
@@ -137,6 +190,53 @@ class HTTPRequestViewModel: ObservableObject {
         }
     }
     
+    // MARK: - 保存和加载请求
+    func saveCurrentRequest() {
+        guard !requestName.isEmpty else {
+            toastMessage = "请输入请求名称"
+            showSuccessToast = true
+            return
+        }
+        
+        let request = SavedRequest(
+            name: requestName,
+            method: method,
+            baseURL: baseURL,
+            params: params,
+            headers: headers,
+            body: body
+        )
+        
+        savedRequests.append(request)
+        RequestStorage.shared.save(savedRequests)
+        
+        toastMessage = "已保存: \(requestName)"
+        showSuccessToast = true
+        showSaveDialog = false
+        requestName = ""
+    }
+    
+    func loadSavedRequests() {
+        savedRequests = RequestStorage.shared.load()
+    }
+    
+    func loadSavedRequest(_ request: SavedRequest) {
+        method = request.method
+        baseURL = request.baseURL
+        params = request.params
+        headers = request.headers
+        body = request.body
+        showSavedRequests = false
+        
+        toastMessage = "已加载: \(request.name)"
+        showSuccessToast = true
+    }
+    
+    func deleteSavedRequest(_ request: SavedRequest) {
+        savedRequests.removeAll { $0.id == request.id }
+        RequestStorage.shared.save(savedRequests)
+    }
+    
     func sendRequest() {
         requestTask?.cancel()
         
@@ -164,12 +264,10 @@ class HTTPRequestViewModel: ObservableObject {
                 request.httpMethod = method.rawValue
                 request.timeoutInterval = 30
                 
-                // Add headers
                 for header in headers where !header.key.isEmpty {
                     request.setValue(header.value, forHTTPHeaderField: header.key)
                 }
                 
-                // Add body for POST/PUT/PATCH
                 if [.POST, .PUT, .PATCH].contains(method) && !body.isEmpty {
                     request.httpBody = body.data(using: .utf8)
                 }
@@ -180,7 +278,6 @@ class HTTPRequestViewModel: ObservableObject {
                     let httpResponse = urlResponse as? HTTPURLResponse
                     let duration = Date().timeIntervalSince(startTime)
                     
-                    // Parse response body
                     let bodyString: String
                     if let jsonObject = try? JSONSerialization.jsonObject(with: data),
                        let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
@@ -190,7 +287,6 @@ class HTTPRequestViewModel: ObservableObject {
                         bodyString = String(data: data, encoding: .utf8) ?? "无法解析响应"
                     }
                     
-                    // Extract headers
                     var responseHeaders: [String: String] = [:]
                     if let httpResponse = httpResponse {
                         for (key, value) in httpResponse.allHeaderFields {
@@ -288,10 +384,17 @@ struct HTTPRequestView: View {
             }
         }
         .frame(width: Layout.width, height: Layout.height)
+        .focusable(false)
         .overlay(alignment: .top) {
             if viewModel.showSuccessToast {
                 toastView
             }
+        }
+        .sheet(isPresented: $viewModel.showSaveDialog) {
+            SaveRequestDialog(viewModel: viewModel)
+        }
+        .sheet(isPresented: $viewModel.showSavedRequests) {
+            SavedRequestsView(viewModel: viewModel)
         }
     }
     
@@ -313,6 +416,23 @@ struct HTTPRequestView: View {
                 .font(.system(size: 16, weight: .semibold))
             
             Spacer()
+            
+            // 保存的请求按钮
+            Button(action: {
+                viewModel.showSavedRequests = true
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 14))
+                    if !viewModel.savedRequests.isEmpty {
+                        Text("\(viewModel.savedRequests.count)")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .help("保存的请求")
+            .pointingHandCursor()
             
             Menu {
                 ForEach(viewModel.quickTemplates, id: \.name) { template in
@@ -348,7 +468,6 @@ struct HTTPRequestView: View {
             
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    // Method selector
                     Menu {
                         ForEach(HTTPMethod.allCases, id: \.self) { method in
                             Button(action: {
@@ -379,7 +498,6 @@ struct HTTPRequestView: View {
                     .menuStyle(.borderlessButton)
                     .frame(width: 80)
                     
-                    // URL input
                     TextField("https://api.example.com", text: $viewModel.baseURL)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .monospaced))
@@ -391,7 +509,6 @@ struct HTTPRequestView: View {
                         }
                 }
                 
-                // Add param button
                 Button(action: viewModel.addParam) {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle")
@@ -407,7 +524,6 @@ struct HTTPRequestView: View {
                 }
                 .buttonStyle(.plain)
                 
-                // Full URL preview
                 if !viewModel.fullURL.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("完整 URL")
@@ -569,6 +685,20 @@ struct HTTPRequestView: View {
             .disabled(viewModel.baseURL.isEmpty || viewModel.isLoading)
             .keyboardShortcut(.return, modifiers: .command)
             
+            Button(action: {
+                viewModel.showSaveDialog = true
+            }) {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.system(size: 11))
+                    .foregroundColor(.blue)
+                    .frame(width: 40)
+                    .padding(.vertical, 8)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            .help("保存请求")
+            
             Button(action: viewModel.clear) {
                 Image(systemName: "trash")
                     .font(.system(size: 11))
@@ -614,7 +744,6 @@ struct HTTPRequestView: View {
     // MARK: - Response Section
     private func responseSection(_ response: HTTPResponse) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Response info
             HStack {
                 sectionHeader("响应结果")
                 Spacer()
@@ -626,14 +755,12 @@ struct HTTPRequestView: View {
                 }
             }
             
-            // Tab selector
             Picker("", selection: $viewModel.selectedTab) {
                 Text("响应体").tag(0)
                 Text("响应头").tag(1)
             }
             .pickerStyle(.segmented)
             
-            // Content
             if viewModel.selectedTab == 0 {
                 responseBodyView(response.body)
             } else {
@@ -727,6 +854,251 @@ struct HTTPRequestView: View {
         Text(title)
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(.secondary)
+    }
+}
+
+// MARK: - 保存请求对话框
+struct SaveRequestDialog: View {
+    @ObservedObject var viewModel: HTTPRequestViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        ZStack {
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(0.95)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                Text("保存请求")
+                    .font(.system(size: 16, weight: .semibold))
+                
+                TextField("请输入请求名称", text: $viewModel.requestName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .padding(10)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(8)
+                
+                HStack(spacing: 12) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                    
+                    Button("保存") {
+                        viewModel.saveCurrentRequest()
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.requestName.isEmpty)
+                }
+            }
+            .padding(30)
+        }
+        .frame(width: 320, height: 180)
+    }
+}
+
+// MARK: - 保存的请求列表
+struct SavedRequestsView: View {
+    @ObservedObject var viewModel: HTTPRequestViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        ZStack {
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(0.95)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // 标题栏
+                HStack {
+                    Image(systemName: "folder")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.blue.gradient)
+                    
+                    Text("保存的请求")
+                        .font(.system(size: 16, weight: .semibold))
+                    
+                    Spacer()
+                    
+                    Text("\(viewModel.savedRequests.count)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                    
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                
+                Divider()
+                
+                // 请求列表
+                if viewModel.savedRequests.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.tertiary)
+                        
+                        Text("还没有保存的请求")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                        
+                        Text("发送请求后点击保存按钮")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(viewModel.savedRequests) { request in
+                                SavedRequestCard(
+                                    request: request,
+                                    onLoad: {
+                                        viewModel.loadSavedRequest(request)
+                                    },
+                                    onDelete: {
+                                        viewModel.deleteSavedRequest(request)
+                                    }
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                }
+            }
+        }
+        .frame(width: 420, height: 560)
+    }
+}
+
+// MARK: - 保存的请求卡片
+struct SavedRequestCard: View {
+    let request: SavedRequest
+    let onLoad: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                // 方法标签
+                Text(request.method.rawValue)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(request.method.color)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(request.method.color.opacity(0.15))
+                    .cornerRadius(4)
+                
+                // 请求名称
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(request.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
+                    
+                    Text(request.baseURL)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+            }
+            
+            // 元数据
+            HStack(spacing: 12) {
+                if !request.params.isEmpty {
+                    Label("\(request.params.count) 参数", systemImage: "link")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                
+                if !request.headers.isEmpty {
+                    Label("\(request.headers.count) 请求头", systemImage: "list.bullet")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Text(formatDate(request.createdAt))
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            
+            // 操作按钮
+            if isHovered {
+                HStack(spacing: 8) {
+                    Button(action: onLoad) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 10))
+                            Text("加载")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.blue.opacity(0.12))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                    
+                    Spacer()
+                    
+                    Button(action: onDelete) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10))
+                            Text("删除")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.red.opacity(0.12))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .pointingHandCursor()
+                }
+                .transition(.opacity.animation(.easeOut(duration: 0.25)))
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isHovered ? Color.white.opacity(0.12) : Color.white.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHovered ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.3), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd HH:mm"
+        return formatter.string(from: date)
     }
 }
 
@@ -869,7 +1241,6 @@ struct InfoBadge: View {
     }
 }
 
-// MARK: - Preview
 #Preview {
     HTTPRequestView()
 }
