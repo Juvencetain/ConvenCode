@@ -9,7 +9,7 @@ class ClipboardMonitor {
     
     // 配置常量
     private let maxStringLength: Int = 3000  // 最大字符串长度
-    private let maxHistoryCount: Int = 100   // 最大历史记录数
+    private let maxHistoryCount: Int = 1000   // 最大历史记录数
     private let duplicateCheckCount: Int = 20 // 检查最近多少条记录是否重复
     
     // 上次保存的内容
