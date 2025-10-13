@@ -1,15 +1,3 @@
-//
-//  AboutView.swift
-//  Conven
-//
-//  Created by 土豆星球 on 2025/10/13.
-//
-
-
-// ================================
-// 创建新文件: AboutView.swift
-// ================================
-
 import SwiftUI
 import AppKit
 
@@ -19,7 +7,7 @@ struct AboutView: View {
     @State private var qrCodeImage: NSImage?
     @State private var showCopiedToast = false
     
-    private let email = "424261131@qq.com"
+    private let email = "424261131@qq.com（交流群：1065476363）"
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     
     var body: some View {
@@ -74,7 +62,7 @@ struct AboutView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(width: 450, height: 580)
+        .frame(minWidth: 400, idealWidth: 450, maxWidth: 500, minHeight: 500, idealHeight: 580, maxHeight: 700)
         .focusable(false)
         .onAppear {
             loadQRCode()
@@ -124,6 +112,7 @@ struct AboutView: View {
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
         }
+        .frame(maxWidth: .infinity)
     }
     
     // MARK: - Intro Section
@@ -146,6 +135,7 @@ struct AboutView: View {
                 featureTag(icon: "heart.fill", text: "用爱发电", color: .pink)
                 featureTag(icon: "square.and.arrow.up.fill", text: "持续更新", color: .blue)
             }
+            .frame(maxWidth: .infinity)
         }
     }
     
@@ -193,9 +183,9 @@ struct AboutView: View {
                     VStack(spacing: 8) {
                         Image(nsImage: qrImage)
                             .resizable()
-                            .interpolation(.none)
+                            .aspectRatio(contentMode: .fill)
                             .frame(width: 200, height: 200)
-                            .background(Color.white)
+                            .clipped()
                             .cornerRadius(12)
                             .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                         
