@@ -63,6 +63,7 @@ struct CatStatisticsView: View {
             }
         }
         .frame(width: 400, height: 550)
+        .focusable(false)
     }
     
     // MARK: - 概要卡片

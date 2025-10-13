@@ -1193,6 +1193,7 @@ struct SavedRequestsView: View {
                     .buttonStyle(.plain)
                     .pointingHandCursor()
                 }
+                .focusable(false)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
                 
