@@ -333,57 +333,33 @@ class HTTPRequestViewModel: ObservableObject {
     }
 }
 
-// MARK: - Main View
+// MARK: - 重新设计的主界面
 struct HTTPRequestView: View {
     @StateObject private var viewModel = HTTPRequestViewModel()
     @Environment(\.dismiss) var dismiss
     
-    private enum Layout {
-        static let width: CGFloat = 420
-        static let height: CGFloat = 560
-        static let padding: CGFloat = 20
-        static let cornerRadius: CGFloat = 10
-    }
-    
     var body: some View {
         ZStack {
-            backgroundView
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(1)
+                .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                headerBar
+                topBar
                 Divider()
                 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 16) {
-                        requestSection
-                        
-                        if !viewModel.params.isEmpty {
-                            paramsSection
-                        }
-                        
-                        headersSection
-                        
-                        if [.POST, .PUT, .PATCH].contains(viewModel.method) {
-                            bodySection
-                        }
-                        
-                        actionButtons
-                        
-                        if viewModel.isLoading {
-                            loadingView
-                        } else if let error = viewModel.errorMessage {
-                            errorView(error)
-                        } else if let response = viewModel.response {
-                            responseSection(response)
-                        }
-                        
-                        Spacer(minLength: 20)
-                    }
-                    .padding(Layout.padding)
+                HStack(spacing: 0) {
+                    // 左侧：请求配置
+                    requestPanel
+                    
+                    Divider()
+                    
+                    // 右侧：响应结果
+                    responsePanel
                 }
             }
         }
-        .frame(width: Layout.width, height: Layout.height)
+        .frame(width: 900, height: 650)
         .focusable(false)
         .overlay(alignment: .top) {
             if viewModel.showSuccessToast {
@@ -398,42 +374,20 @@ struct HTTPRequestView: View {
         }
     }
     
-    // MARK: - Background
-    private var backgroundView: some View {
-        VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-            .opacity(1)
-            .ignoresSafeArea()
-    }
+    // MARK: - 顶部栏
     
-    // MARK: - Header
-    private var headerBar: some View {
+    private var topBar: some View {
         HStack {
             Image(systemName: "arrow.left.arrow.right.circle")
                 .font(.system(size: 16))
-                .foregroundStyle(.blue.gradient)
+                .foregroundStyle(.indigo.gradient)
             
-            Text("HTTP 请求")
+            Text("HTTP 请求工具")
                 .font(.system(size: 16, weight: .semibold))
             
             Spacer()
             
-            // 保存的请求按钮
-            Button(action: {
-                viewModel.showSavedRequests = true
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 14))
-                    if !viewModel.savedRequests.isEmpty {
-                        Text("\(viewModel.savedRequests.count)")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .help("保存的请求")
-            .pointingHandCursor()
-            
+            // 快速模板
             Menu {
                 ForEach(viewModel.quickTemplates, id: \.name) { template in
                     Button(action: {
@@ -443,11 +397,38 @@ struct HTTPRequestView: View {
                     }
                 }
             } label: {
-                Image(systemName: "bolt.circle")
-                    .font(.system(size: 16))
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.circle.fill")
+                    Text("模板")
+                }
+                .font(.system(size: 12))
+                .foregroundColor(.blue)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(6)
             }
             .menuStyle(.borderlessButton)
-            .help("快速模板")
+            
+            // 保存的请求
+            Button(action: { viewModel.showSavedRequests = true }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder.fill")
+                    Text("已保存")
+                    if !viewModel.savedRequests.isEmpty {
+                        Text("(\(viewModel.savedRequests.count))")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                }
+                .font(.system(size: 12))
+                .foregroundColor(.green)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
+            .httpCursor()
             
             Button(action: { dismiss() }) {
                 Image(systemName: "xmark.circle.fill")
@@ -455,19 +436,50 @@ struct HTTPRequestView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .pointingHandCursor()
+            .httpCursor()
         }
-        .padding(.horizontal, Layout.padding)
+        .padding(.horizontal, 24)
         .padding(.vertical, 16)
     }
     
-    // MARK: - Request Section
-    private var requestSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("请求配置")
+    // MARK: - 请求配置面板
+    
+    private var requestPanel: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 20) {
+                // URL 和方法
+                urlSection
+                
+                // 参数
+                if !viewModel.params.isEmpty {
+                    paramsSection
+                }
+                
+                // 请求头
+                headersSection
+                
+                // 请求体
+                if [.POST, .PUT, .PATCH].contains(viewModel.method) {
+                    bodySection
+                }
+                
+                // 操作按钮
+                actionButtons
+                
+                Spacer(minLength: 20)
+            }
+            .padding(24)
+        }
+        .frame(width: 450)
+    }
+    
+    private var urlSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("请求配置")
             
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
+            VStack(spacing: 12) {
+                // 方法选择器和URL输入
+                HStack(spacing: 10) {
                     Menu {
                         ForEach(HTTPMethod.allCases, id: \.self) { method in
                             Button(action: {
@@ -482,91 +494,99 @@ struct HTTPRequestView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 6) {
                             Text(viewModel.method.rawValue)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
                                 .foregroundColor(viewModel.method.color)
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 9))
+                                .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                         .background(viewModel.method.color.opacity(0.15))
-                        .cornerRadius(6)
+                        .cornerRadius(8)
                     }
                     .menuStyle(.borderlessButton)
-                    .frame(width: 80)
+                    .frame(width: 100)
                     
-                    TextField("https://api.example.com", text: $viewModel.baseURL)
+                    TextField("https://api.example.com/endpoint", text: $viewModel.baseURL)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12, design: .monospaced))
-                        .padding(6)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(6)
+                        .font(.system(size: 13, design: .monospaced))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(8)
                         .onSubmit {
                             viewModel.sendRequest()
                         }
                 }
                 
+                // 添加参数按钮
                 Button(action: viewModel.addParam) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 11))
-                        Text("添加参数")
-                            .font(.system(size: 11))
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 12))
+                        Text("添加查询参数")
+                            .font(.system(size: 12, weight: .medium))
                     }
                     .foregroundColor(.blue)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 9)
                     .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
+                    .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
+                .httpCursor()
                 
+                // 完整URL显示
                 if !viewModel.fullURL.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("完整 URL")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text(viewModel.fullURL)
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundColor(.blue)
-                                .lineLimit(2)
-                                .textSelection(.enabled)
+                            Text("完整 URL")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
                             
                             Spacer()
                             
                             Button(action: {
                                 viewModel.copyToClipboard(viewModel.fullURL, message: "已复制 URL")
                             }) {
-                                Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 10))
+                                HStack(spacing: 4) {
+                                    Image(systemName: "doc.on.doc")
+                                    Text("复制")
+                                }
+                                .font(.system(size: 10))
+                                .foregroundColor(.blue)
                             }
                             .buttonStyle(.plain)
+                            .httpCursor()
                         }
-                        .padding(6)
-                        .background(Color.black.opacity(0.15))
-                        .cornerRadius(6)
+                        
+                        Text(viewModel.fullURL)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.blue)
+                            .textSelection(.enabled)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.black.opacity(0.15))
+                            .cornerRadius(6)
                     }
                 }
             }
-            .padding(12)
+            .padding(16)
             .background(Color.white.opacity(0.05))
-            .cornerRadius(Layout.cornerRadius)
+            .cornerRadius(12)
         }
     }
     
-    // MARK: - Params Section
     private var paramsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("查询参数")
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("查询参数")
             
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 ForEach(viewModel.params) { param in
-                    ParamRow(
+                    ModernParamRow(
                         param: param,
                         onToggle: { enabled in
                             if let index = viewModel.params.firstIndex(where: { $0.id == param.id }) {
@@ -591,30 +611,35 @@ struct HTTPRequestView: View {
                     )
                 }
             }
-            .padding(12)
+            .padding(16)
             .background(Color.white.opacity(0.05))
-            .cornerRadius(Layout.cornerRadius)
+            .cornerRadius(12)
         }
     }
     
-    // MARK: - Headers Section
     private var headersSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                sectionHeader("请求头")
+                sectionTitle("请求头")
+                
                 Spacer()
+                
                 Button(action: viewModel.addHeader) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.blue.gradient)
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 12))
+                        Text("添加")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
-                .help("添加请求头")
+                .httpCursor()
             }
             
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 ForEach(viewModel.headers) { header in
-                    HeaderRow(
+                    ModernHeaderRow(
                         header: header,
                         onKeyChange: { newKey in
                             if let index = viewModel.headers.firstIndex(where: { $0.id == header.id }) {
@@ -634,133 +659,173 @@ struct HTTPRequestView: View {
                     )
                 }
             }
-            .padding(12)
+            .padding(16)
             .background(Color.white.opacity(0.05))
-            .cornerRadius(Layout.cornerRadius)
+            .cornerRadius(12)
         }
     }
     
-    // MARK: - Body Section
     private var bodySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                sectionHeader("请求体")
+                sectionTitle("请求体")
+                
                 Spacer()
+                
                 Text("JSON")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.2))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.15))
                     .cornerRadius(4)
             }
             
             TextEditor(text: $viewModel.body)
-                .font(.system(size: 11, design: .monospaced))
-                .frame(height: 100)
+                .font(.system(size: 12, design: .monospaced))
                 .scrollContentBackground(.hidden)
-                .padding(8)
+                .padding(12)
+                .frame(height: 140)
                 .background(Color.white.opacity(0.05))
-                .cornerRadius(Layout.cornerRadius)
+                .cornerRadius(12)
         }
     }
     
-    // MARK: - Action Buttons
     private var actionButtons: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Button(action: viewModel.sendRequest) {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "paperplane.fill")
-                        .font(.system(size: 11))
-                    Text("发送")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13))
+                    Text("发送请求")
+                        .font(.system(size: 14, weight: .semibold))
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+                .padding(.vertical, 12)
                 .background(viewModel.method.color.gradient)
-                .cornerRadius(8)
+                .cornerRadius(10)
             }
             .buttonStyle(.plain)
             .disabled(viewModel.baseURL.isEmpty || viewModel.isLoading)
             .keyboardShortcut(.return, modifiers: .command)
+            .httpCursor()
             
-            Button(action: {
-                viewModel.showSaveDialog = true
-            }) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.system(size: 11))
+            Button(action: { viewModel.showSaveDialog = true }) {
+                Image(systemName: "square.and.arrow.down.fill")
+                    .font(.system(size: 14))
                     .foregroundColor(.blue)
-                    .frame(width: 40)
-                    .padding(.vertical, 8)
+                    .frame(width: 48)
+                    .padding(.vertical, 12)
                     .background(Color.blue.opacity(0.1))
-                    .cornerRadius(8)
+                    .cornerRadius(10)
             }
             .buttonStyle(.plain)
             .help("保存请求")
+            .httpCursor()
             
             Button(action: viewModel.clear) {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
-                    .frame(width: 40)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(8)
+                    .frame(width: 48)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(10)
             }
             .buttonStyle(.plain)
+            .help("清空")
             .keyboardShortcut("k", modifiers: .command)
+            .httpCursor()
         }
     }
     
-    // MARK: - Loading View
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .scaleEffect(0.7)
-            Text("发送中...")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-    }
+    // MARK: - 响应面板
     
-    // MARK: - Error View
-    private func errorView(_ message: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 32))
-                .foregroundStyle(.orange.gradient)
-            Text(message)
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-    }
-    
-    // MARK: - Response Section
-    private func responseSection(_ response: HTTPResponse) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                sectionHeader("响应结果")
-                Spacer()
-                
-                HStack(spacing: 12) {
-                    InfoBadge(label: "状态", value: "\(response.statusCode)", color: response.statusColor)
-                    InfoBadge(label: "时长", value: response.formattedDuration, color: .blue)
-                    InfoBadge(label: "大小", value: response.formattedSize, color: .purple)
-                }
+    private var responsePanel: some View {
+        VStack(spacing: 0) {
+            if viewModel.isLoading {
+                loadingView
+            } else if let error = viewModel.errorMessage {
+                errorView(error)
+            } else if let response = viewModel.response {
+                responseContent(response)
+            } else {
+                emptyResponseView
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var emptyResponseView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "arrow.down.circle.dotted")
+                .font(.system(size: 64))
+                .foregroundStyle(.tertiary)
             
+            VStack(spacing: 8) {
+                Text("等待响应")
+                    .font(.system(size: 16, weight: .medium))
+                
+                Text("配置请求后点击发送")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var loadingView: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.2)
+            
+            Text("请求中...")
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(.orange.gradient)
+            
+            VStack(spacing: 8) {
+                Text("请求失败")
+                    .font(.system(size: 16, weight: .medium))
+                
+                Text(message)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private func responseContent(_ response: HTTPResponse) -> some View {
+        VStack(spacing: 0) {
+            // 状态栏
+            responseStatusBar(response)
+            
+            Divider()
+            
+            // 标签切换
             Picker("", selection: $viewModel.selectedTab) {
                 Text("响应体").tag(0)
                 Text("响应头").tag(1)
             }
             .pickerStyle(.segmented)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
             
+            Divider()
+            
+            // 内容
             if viewModel.selectedTab == 0 {
                 responseBodyView(response.body)
             } else {
@@ -769,30 +834,63 @@ struct HTTPRequestView: View {
         }
     }
     
+    private func responseStatusBar(_ response: HTTPResponse) -> some View {
+        HStack(spacing: 20) {
+            StatusBadge(
+                label: "状态码",
+                value: "\(response.statusCode)",
+                color: response.statusColor
+            )
+            
+            StatusBadge(
+                label: "耗时",
+                value: response.formattedDuration,
+                color: .blue
+            )
+            
+            StatusBadge(
+                label: "大小",
+                value: response.formattedSize,
+                color: .purple
+            )
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(Color.black.opacity(0.05))
+    }
+    
     private func responseBodyView(_ body: String) -> some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            Button(action: {
-                viewModel.copyToClipboard(body, message: "已复制响应体")
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "doc.on.doc")
-                    Text("复制")
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                
+                Button(action: {
+                    viewModel.copyToClipboard(body, message: "已复制响应体")
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc.fill")
+                        Text("复制")
+                    }
+                    .font(.system(size: 12))
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
                 }
-                .font(.system(size: 10))
-                .foregroundColor(.blue)
+                .buttonStyle(.plain)
+                .httpCursor()
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
             
             ScrollView {
                 Text(body)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: 12, design: .monospaced))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
+                    .padding(20)
             }
-            .frame(height: 150)
-            .background(Color.black.opacity(0.2))
-            .cornerRadius(Layout.cornerRadius)
         }
     }
     
@@ -800,60 +898,217 @@ struct HTTPRequestView: View {
         ScrollView {
             VStack(spacing: 0) {
                 ForEach(Array(headers.sorted(by: { $0.key < $1.key }).enumerated()), id: \.offset) { index, header in
-                    HStack(spacing: 8) {
+                    HStack(spacing: 12) {
                         Text(header.key)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundColor(.blue)
-                            .frame(width: 100, alignment: .leading)
+                            .frame(width: 140, alignment: .leading)
                         
                         Text(header.value)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
+                            .font(.system(size: 12, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
                         
                         Button(action: {
                             viewModel.copyToClipboard(header.value, message: "已复制")
                         }) {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 9))
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .httpCursor()
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(index % 2 == 0 ? Color.white.opacity(0.05) : Color.clear)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(index % 2 == 0 ? Color.white.opacity(0.03) : Color.clear)
                 }
             }
         }
-        .frame(height: 150)
-        .background(Color.black.opacity(0.1))
-        .cornerRadius(Layout.cornerRadius)
     }
     
     // MARK: - Toast
+    
     private var toastView: some View {
-        Text("✓ \(viewModel.toastMessage)")
-            .font(.system(size: 12))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.green.opacity(0.9))
-            .foregroundColor(.white)
-            .cornerRadius(16)
-            .padding(.top, 60)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.3).delay(1.5)) {
-                    viewModel.showSuccessToast = false
-                }
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12))
+            Text(viewModel.toastMessage)
+                .font(.system(size: 12))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.green.opacity(1))
+        .cornerRadius(20)
+        .shadow(color: .black.opacity(0.2), radius: 8, y: 2)
+        .padding(.top, 70)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.3).delay(2)) {
+                viewModel.showSuccessToast = false
             }
+        }
     }
     
-    // MARK: - Helpers
-    private func sectionHeader(_ title: String) -> some View {
+    // MARK: - 辅助方法
+    
+    private func sectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(.secondary)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.primary)
+    }
+}
+
+// MARK: - 现代化参数行
+
+struct ModernParamRow: View {
+    let param: HTTPParam
+    let onToggle: (Bool) -> Void
+    let onKeyChange: (String) -> Void
+    let onValueChange: (String) -> Void
+    let onRemove: () -> Void
+    
+    @State private var localEnabled: Bool
+    @State private var localKey: String
+    @State private var localValue: String
+    
+    init(param: HTTPParam, onToggle: @escaping (Bool) -> Void, onKeyChange: @escaping (String) -> Void, onValueChange: @escaping (String) -> Void, onRemove: @escaping () -> Void) {
+        self.param = param
+        self.onToggle = onToggle
+        self.onKeyChange = onKeyChange
+        self.onValueChange = onValueChange
+        self.onRemove = onRemove
+        _localEnabled = State(initialValue: param.enabled)
+        _localKey = State(initialValue: param.key)
+        _localValue = State(initialValue: param.value)
+    }
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle("", isOn: $localEnabled)
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .onChange(of: localEnabled) { onToggle($0) }
+            
+            TextField("键", text: $localKey)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(6)
+                .onChange(of: localKey) { onKeyChange($0) }
+            
+            Text("=")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.secondary)
+            
+            TextField("值", text: $localValue)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(6)
+                .onChange(of: localValue) { onValueChange($0) }
+            
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.red.opacity(0.8))
+            }
+            .buttonStyle(.plain)
+            .httpCursor()
+        }
+    }
+}
+
+// MARK: - 现代化请求头行
+
+struct ModernHeaderRow: View {
+    let header: HTTPHeader
+    let onKeyChange: (String) -> Void
+    let onValueChange: (String) -> Void
+    let onRemove: () -> Void
+    
+    @State private var localKey: String
+    @State private var localValue: String
+    
+    init(header: HTTPHeader, onKeyChange: @escaping (String) -> Void, onValueChange: @escaping (String) -> Void, onRemove: @escaping () -> Void) {
+        self.header = header
+        self.onKeyChange = onKeyChange
+        self.onValueChange = onValueChange
+        self.onRemove = onRemove
+        _localKey = State(initialValue: header.key)
+        _localValue = State(initialValue: header.value)
+    }
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            TextField("Key", text: $localKey)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(6)
+                .onChange(of: localKey) { onKeyChange($0) }
+            
+            Text(":")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.secondary)
+            
+            TextField("Value", text: $localValue)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(6)
+                .onChange(of: localValue) { onValueChange($0) }
+            
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.red.opacity(0.8))
+            }
+            .buttonStyle(.plain)
+            .httpCursor()
+        }
+    }
+}
+
+// MARK: - 状态徽章
+
+struct StatusBadge: View {
+    let label: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+            
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - 通用组件（保存对话框和列表视图保持不变，使用原有代码）
+
+extension View {
+    func httpCursor() -> some View {
+        self.onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
     }
 }
 
