@@ -84,6 +84,10 @@ struct CatConfig {
         
         // 死亡条件：至少1个属性为0
         static let deathThreshold: Int = 1
+        
+        static let toolRewardMin: Int = 1
+        static let toolRewardMax: Int = 5
+        static let toolRewardEnabled: Bool = true
     }
     
     // MARK: - 通知配置

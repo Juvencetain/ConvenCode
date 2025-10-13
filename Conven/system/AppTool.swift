@@ -67,8 +67,9 @@ class ToolsManager {
         return allTools.first { $0.type == type }
     }
     
-    // 打开工具窗口（统一的窗口打开逻辑）
-    func openToolWindow(_ type: AppTool.ToolType) {
+    func openToolWindow(_ type: AppTool.ToolType, viewModel: CatViewModel? = nil) {
+        print("🚀 ToolsManager.openToolWindow 被调用")
+        
         let view: AnyView
         let size: NSSize
         
@@ -120,6 +121,16 @@ class ToolsManager {
         window.makeKeyAndOrderFront(nil)
         
         NSApp.activate(ignoringOtherApps: true)
+        
+        // ⭐ 新增: 触发工具奖励
+        if let vm = viewModel {
+            print("✅ viewModel 存在，触发奖励")
+            DispatchQueue.main.async {
+                vm.rewardForToolUsage()
+            }
+        } else {
+            print("⚠️ viewModel 为 nil，无法触发奖励")
+        }
     }
 }
 

@@ -89,7 +89,7 @@ struct CatMenuView: View {
             UsageStatisticsDetailView()
         }
         .sheet(isPresented: $showTools) {
-            ToolsMenuView()
+            ToolsMenuView(viewModel: viewModel)
         }
         .sheet(isPresented: $showStatistics) {
             CatStatisticsView(viewModel: viewModel)
@@ -886,7 +886,7 @@ extension CatMenuView {
 // MARK: - 工具菜单视图
 struct ToolsMenuView: View {
     @Environment(\.dismiss) var dismiss
-    
+    let viewModel: CatViewModel
     // 从统一的工具管理器获取所有工具
     private var tools: [AppTool] {
         ToolsManager.shared.allTools
@@ -935,7 +935,7 @@ struct ToolsMenuView: View {
                                 color: tool.color
                             ) {
                                 // 使用统一的工具管理器打开窗口
-                                ToolsManager.shared.openToolWindow(tool.type)
+                                ToolsManager.shared.openToolWindow(tool.type, viewModel: viewModel)
                             }
                         }
                     }

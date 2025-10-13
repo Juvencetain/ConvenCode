@@ -4,7 +4,7 @@ import SwiftUI
 import UserNotifications
 
 class CatViewModel: ObservableObject {
-    
+    static let shared = CatViewModel()
     // MARK: - Published Properties
     @Published var mood: Double
     @Published var hunger: Double
@@ -288,5 +288,36 @@ class CatViewModel: ObservableObject {
         catName = newName
         CatConfig.Info.updateName(newName)
         userDefaults.set(newName, forKey: CatConfig.StorageKeys.catName)
+    }
+    
+    // ⭐ 新增: 工具奖励方法
+    func rewardForToolUsage() {
+        guard isAlive else {
+            print("❌ 小猫已死亡，无法获得奖励")
+            return
+        }
+        
+        let rewardValue = Int.random(in: CatConfig.GamePlay.toolRewardMin...CatConfig.GamePlay.toolRewardMax)
+        let doubleValue = Double(rewardValue)
+        let randomChoice = Int.random(in: 0...2)
+        
+        let attributeName: String
+        
+        switch randomChoice {
+        case 0:
+            mood = min(100, mood + doubleValue)
+            attributeName = "心情"
+        case 1:
+            hunger = min(100, hunger + doubleValue)
+            attributeName = "饥饿度"
+        case 2:
+            cleanliness = min(100, cleanliness + doubleValue)
+            attributeName = "清洁度"
+        default:
+            attributeName = "未知"
+        }
+        
+        saveData()
+        print("🎉🎉🎉 工具奖励: \(attributeName) +\(rewardValue) 🎉🎉🎉")
     }
 }

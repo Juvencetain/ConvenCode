@@ -127,6 +127,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     // 添加事件监听器
     private var eventMonitor: Any?
     
+    func getCatViewModel() -> CatViewModel {
+            return catViewModel
+        }
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 请求通知权限
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
