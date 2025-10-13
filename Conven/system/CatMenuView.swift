@@ -97,6 +97,9 @@ struct CatMenuView: View {
         .sheet(isPresented: $showManageTools) {
             ManageToolsView(pinnedTools: $pinnedTools)
         }
+        .sheet(isPresented: $showAbout) {
+            AboutView()
+        }
         .alert("确定要退出吗？", isPresented: $showQuitConfirmation) {
             Button("取消", role: .cancel) { }
             Button("退出", role: .destructive) {
