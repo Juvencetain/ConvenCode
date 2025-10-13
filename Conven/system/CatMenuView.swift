@@ -879,7 +879,7 @@ struct MenuButton: View {
 extension CatMenuView {
     func openToolWindow(_ type: AppTool.ToolType) {
         // 使用统一的工具管理器
-        ToolsManager.shared.openToolWindow(type)
+        ToolsManager.shared.openToolWindow(type, viewModel: viewModel)
     }
 }
 
