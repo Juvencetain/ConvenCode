@@ -141,6 +141,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
         
+        // ⭐ 初始化AI日程服务（只初始化一次）
+        _ = CatAIScheduleService.shared
+        print("✅ AI日程服务已启动")
+        
         // 检查 GIF 文件
         if let path = Bundle.main.path(forResource: "cat-animated", ofType: "gif") {
             print("✅ GIF 文件找到: \(path)")

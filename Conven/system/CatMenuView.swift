@@ -11,6 +11,7 @@ struct CatMenuView: View {
     @State private var showQuitConfirmation = false
     @State private var showDetailStats = false
     @State private var pinnedTools: [AppTool] = []
+    @State private var showSchedule = false
     
     var body: some View {
         ZStack {
@@ -99,6 +100,9 @@ struct CatMenuView: View {
         }
         .sheet(isPresented: $showAbout) {
             AboutView()
+        }
+        .sheet(isPresented: $showSchedule) {
+            CatScheduleView()
         }
         .alert("确定要退出吗？", isPresented: $showQuitConfirmation) {
             Button("取消", role: .cancel) { }
@@ -267,6 +271,14 @@ struct CatMenuView: View {
                 icon: "chart.bar.fill",
                 label: "统计",
                 action: { showStatistics = true }
+            )
+            Divider()
+                .frame(height: 20)
+            
+            MenuButton(
+                icon: "calendar.circle.fill",
+                label: "日程",
+                action: { showSchedule = true }
             )
             
             Divider()
