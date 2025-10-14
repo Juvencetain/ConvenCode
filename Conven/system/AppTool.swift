@@ -10,7 +10,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     let type: ToolType
     
     enum ToolType: String, Codable {
-        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr, passwordManager, morse, imageTools
+        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr, passwordManager, morse, imageTools,iconGenerator
     }
     
     // Codable 支持 Color
@@ -62,6 +62,7 @@ class ToolsManager {
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
         AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator),
+        AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator),
         AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools)
     ]
     
@@ -114,8 +115,10 @@ class ToolsManager {
         case .imageTools:
             view = AnyView(ImageToolsView())
             size = NSSize(width: 420, height: 560)
+        case .iconGenerator:
+            view = AnyView(IconGeneratorView())
+            size = NSSize(width: 420, height: 760)
         }
-        
         let hostingController = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hostingController)
         
