@@ -179,8 +179,7 @@ struct UsageStatsCard: View {
     }
 }
 
-// MARK: - 极简折线图
-
+// MARK: - 极简折线图===================
 struct MinimalLineChart: View {
     @Binding var hoveredIndex: Int?
     @ObservedObject var statsService = UsageStatisticsService.shared
@@ -197,70 +196,151 @@ struct MinimalLineChart: View {
     
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .topLeading) {
-                // 只显示平滑曲线
+            ZStack {
+                // 平滑曲线
                 smoothPath(in: geometry.size)
                     .stroke(
                         lineGradient(),
                         style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
                     )
                 
-                // 数据点（悬浮时显示）
-                dataPoints(in: geometry.size)
+                // 悬停相关的视图
+                if let index = hoveredIndex, index < recentData.count {
+                    let stepX = geometry.size.width / CGFloat(max(recentData.count - 1, 1))
+                    let x = CGFloat(index) * stepX
+                    let percentage = CGFloat(recentData[index].openCount) / CGFloat(maxCount)
+                    let y = geometry.size.height * (1 - percentage)
+                    
+                    // 悬停时的圆点
+                    ZStack {
+                        Circle().fill(Color.white.opacity(0.3)).frame(width: 16, height: 16)
+                        Circle().fill(Color.white).frame(width: 10, height: 10)
+                    }
+                    .position(x: x, y: y)
+                    .transition(.scale.animation(.spring()))
+                    
+                    // 悬停提示框 (已包含智能定位逻辑)
+                    hoverTooltip(for: recentData[index], x: x, y: y, in: geometry.size)
+                }
+                
+                // 悬停区域 (保持在最上层以响应事件)
+                hoverAreas(in: geometry.size)
             }
         }
     }
     
-    // 根据数据生成渐变（从左到右根据每个点的数值变化）
-    private func lineGradient() -> LinearGradient {
-        guard !recentData.isEmpty else {
-            return LinearGradient(colors: [.blue], startPoint: .leading, endPoint: .trailing)
+    // MARK: - 悬停提示框 (智能定位版)
+    
+    private func hoverTooltip(for usage: DailyUsage, x: CGFloat, y: CGFloat, in size: CGSize) -> some View {
+        let tooltipWidth: CGFloat = 70
+        let tooltipHeight: CGFloat = 44
+        let dotRadius: CGFloat = 8
+        let padding: CGFloat = 8
+        
+        // 判断圆点是否在图表上半部分
+        let isAboveHalf = y < size.height / 2
+        
+        // 计算Y轴位置
+        let yPos = isAboveHalf
+            ? y + dotRadius + padding + (tooltipHeight / 2) // 在下方
+            : y - dotRadius - padding - (tooltipHeight / 2) // 在上方
+        
+        // 水平位置逻辑
+        var xPos = x
+        if xPos - tooltipWidth / 2 < 5 {
+            xPos = tooltipWidth / 2 + 5
+        } else if xPos + tooltipWidth / 2 > size.width - 5 {
+            xPos = size.width - tooltipWidth / 2 - 5
         }
-        
-        var colors: [Color] = []
-        
-        for usage in recentData {
-            colors.append(colorForCount(usage.openCount))
+
+        return VStack(spacing: 3) {
+            Text("\(usage.openCount) 次")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white)
+            
+            Text(usage.dateString)
+                .font(.system(size: 10))
+                .foregroundColor(.white.opacity(0.8))
         }
-        
-        // 如果颜色少于2个，补充一个
-        if colors.count < 2 {
-            colors.append(colors.first ?? .blue)
-        }
-        
-        return LinearGradient(
-            colors: colors,
-            startPoint: .leading,
-            endPoint: .trailing
+        .frame(width: tooltipWidth, height: tooltipHeight)
+        .background(
+            // 使用带箭头的新背景形状
+            TooltipShape(arrowEdge: isAboveHalf ? .top : .bottom)
+                .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.9))
+                .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
         )
+        .position(x: xPos, y: yPos)
+        .id("tooltip-\(usage.id)")
     }
     
-    // 生成平滑曲线路径（使用贝塞尔曲线）
+    // MARK: - 悬停区域
+    
+    private func hoverAreas(in size: CGSize) -> some View {
+        let stepX = size.width / CGFloat(max(recentData.count, 1))
+        
+        return HStack(spacing: 0) {
+            ForEach(0..<recentData.count, id: \.self) { index in
+                Color.clear
+                    .frame(width: stepX, height: size.height)
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            if hovering {
+                                hoveredIndex = index
+                            } else if hoveredIndex == index {
+                                hoveredIndex = nil
+                            }
+                        }
+                    }
+            }
+        }
+    }
+    
+    // MARK: - 渐变色
+    
+    private func lineGradient() -> LinearGradient {
+        guard !recentData.isEmpty else {
+            return LinearGradient(colors: [.gray], startPoint: .leading, endPoint: .trailing)
+        }
+        
+        var colors: [Color] = recentData.map { colorForCount($0.openCount) }
+        
+        if colors.count == 1 {
+            colors.append(colors.first!)
+        }
+        
+        return LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+    }
+    
+    // MARK: - 平滑曲线
+    
     private func smoothPath(in size: CGSize) -> Path {
         Path { path in
-            guard recentData.count >= 2 else { return }
+            guard recentData.count >= 2 else {
+                if let firstUsage = recentData.first {
+                    let percentage = CGFloat(firstUsage.openCount) / CGFloat(maxCount)
+                    let y = size.height * (1 - percentage)
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: size.width, y: y))
+                }
+                return
+            }
             
             let stepX = size.width / CGFloat(recentData.count - 1)
-            var points: [CGPoint] = []
-            
-            // 收集所有数据点
-            for (index, usage) in recentData.enumerated() {
+            var points: [CGPoint] = recentData.enumerated().map { index, usage in
                 let x = CGFloat(index) * stepX
                 let percentage = CGFloat(usage.openCount) / CGFloat(maxCount)
                 let y = size.height * (1 - percentage)
-                points.append(CGPoint(x: x, y: y))
+                return CGPoint(x: x, y: y)
             }
             
-            // 绘制平滑曲线
             path.move(to: points[0])
             
             for i in 1..<points.count {
                 let current = points[i]
                 let previous = points[i - 1]
                 
-                // 计算控制点（创建平滑过渡）
                 let controlPointX = (previous.x + current.x) / 2
-                
                 let controlPoint1 = CGPoint(x: controlPointX, y: previous.y)
                 let controlPoint2 = CGPoint(x: controlPointX, y: current.y)
                 
@@ -269,67 +349,68 @@ struct MinimalLineChart: View {
         }
     }
     
-    // 数据点和悬浮提示
-    private func dataPoints(in size: CGSize) -> some View {
-        ForEach(Array(recentData.enumerated()), id: \.element.id) { index, usage in
-            let stepX = size.width / CGFloat(recentData.count - 1)
-            let x = CGFloat(index) * stepX
-            let percentage = CGFloat(usage.openCount) / CGFloat(maxCount)
-            let y = size.height * (1 - percentage)
-            
-            ZStack {
-                // 数据点（只在悬浮时显示）
-                if hoveredIndex == index {
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 8, height: 8)
-                        .shadow(color: colorForCount(usage.openCount).opacity(0.6), radius: 6)
-                    
-                    // 悬浮提示
-                    VStack(spacing: 3) {
-                        Text("\(usage.openCount) 次")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(usage.dateString)
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(.black.opacity(0.9))
-                            .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
-                    )
-                    .foregroundColor(.white)
-                    .offset(y: -40)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .position(x: x, y: y)
-            .contentShape(Rectangle().size(width: max(stepX, 20), height: size.height))
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    hoveredIndex = hovering ? index : nil
-                }
-            }
-        }
-    }
+    // MARK: - 颜色映射
     
-    // 根据使用量返回颜色
     private func colorForCount(_ count: Int) -> Color {
         switch count {
-        case 0: return Color(red: 0.5, green: 0.5, blue: 0.5) // 灰色
-        case 1...3: return Color(red: 0.2, green: 0.5, blue: 1.0) // 蓝色
-        case 4...6: return Color(red: 0.2, green: 0.8, blue: 0.9) // 青色
-        case 7...10: return Color(red: 0.2, green: 0.9, blue: 0.4) // 绿色
-        case 11...15: return Color(red: 1.0, green: 0.7, blue: 0.2) // 橙色
-        default: return Color(red: 1.0, green: 0.3, blue: 0.3) // 红色
+        case 0: return Color(red: 0.5, green: 0.5, blue: 0.5)
+        case 1...3: return Color(red: 0.2, green: 0.5, blue: 1.0)
+        case 4...6: return Color(red: 0.2, green: 0.8, blue: 0.9)
+        case 7...10: return Color(red: 0.2, green: 0.9, blue: 0.4)
+        case 11...15: return Color(red: 1.0, green: 0.7, blue: 0.2)
+        default: return Color(red: 1.0, green: 0.3, blue: 0.3)
         }
     }
 }
+// --- UPDATED END ---
 
+
+// MARK: - 带箭头的提示框背景形状
+// --- NEW START ---
+struct TooltipShape: Shape {
+    enum ArrowEdge { case top, bottom }
+    
+    var cornerRadius: CGFloat = 8
+    var arrowSize: CGFloat = 8
+    var arrowEdge: ArrowEdge
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        let mainRect = rect.insetBy(
+            dx: 0,
+            dy: arrowEdge == .top ? arrowSize / 2 : -arrowSize / 2
+        ).offsetBy(
+            dx: 0,
+            dy: arrowEdge == .top ? arrowSize / 2 : -arrowSize / 2
+        )
+        
+        path.addRoundedRect(in: mainRect, cornerSize: CGSize(width: cornerRadius, height: cornerRadius))
+        
+        switch arrowEdge {
+        case .top:
+            let arrowPath = Path { p in
+                p.move(to: CGPoint(x: rect.midX - arrowSize, y: mainRect.minY))
+                p.addLine(to: CGPoint(x: rect.midX, y: mainRect.minY - arrowSize))
+                p.addLine(to: CGPoint(x: rect.midX + arrowSize, y: mainRect.minY))
+                p.closeSubpath()
+            }
+            path.addPath(arrowPath)
+            
+        case .bottom:
+            let arrowPath = Path { p in
+                p.move(to: CGPoint(x: rect.midX - arrowSize, y: mainRect.maxY))
+                p.addLine(to: CGPoint(x: rect.midX, y: mainRect.maxY + arrowSize))
+                p.addLine(to: CGPoint(x: rect.midX + arrowSize, y: mainRect.maxY))
+                p.closeSubpath()
+            }
+            path.addPath(arrowPath)
+        }
+        
+        return path
+    }
+}
 // MARK: - 统计徽章
-
 struct StatBadge: View {
     let icon: String
     let label: String
@@ -444,7 +525,6 @@ struct UsageChart: View {
 }
 
 // MARK: - 详细统计视图（可选的独立窗口）
-
 struct UsageStatisticsDetailView: View {
     @ObservedObject var statsService = UsageStatisticsService.shared
     @Environment(\.dismiss) var dismiss
