@@ -9,7 +9,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     let type: ToolType
     
     enum ToolType: String, Codable {
-        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr,passwordManager
+        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr,passwordManager, morse
     }
     
     // Codable 支持 Color
@@ -59,6 +59,7 @@ class ToolsManager {
         AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json),
         AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator),
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
+        AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator)
     ]
     
@@ -104,6 +105,9 @@ class ToolsManager {
             let passwordView = PasswordManagerView()
                 .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
             view = AnyView(passwordView)
+            size = NSSize(width: 420, height: 560)
+        case .morse: // <-- 新增这个 case
+            view = AnyView(MorseCodeToolView())
             size = NSSize(width: 420, height: 560)
         }
         
