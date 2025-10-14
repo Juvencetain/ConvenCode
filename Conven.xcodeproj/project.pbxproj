@@ -27,20 +27,8 @@
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-		B19BFDCA2E9E390A00A713FB /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
+		B19BFED92E9EBACA00A713FB /* Translation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Translation.framework; path = System/Library/Frameworks/Translation.framework; sourceTree = SDKROOT; };
 		B19DB79A2E97486300FC0468 /* Conven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Conven.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B19DB7AC2E97486400FC0468 /* ConvenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConvenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B19DB7B62E97486400FC0468 /* ConvenUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConvenUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -90,12 +78,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B19BFED82E9EBACA00A713FB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B19BFED92E9EBACA00A713FB /* Translation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		B19DB7912E97486300FC0468 = {
 			isa = PBXGroup;
 			children = (
 				B19DB79C2E97486300FC0468 /* Conven */,
 				B19DB7AF2E97486400FC0468 /* ConvenTests */,
 				B19DB7B92E97486400FC0468 /* ConvenUITests */,
+				B19BFED82E9EBACA00A713FB /* Frameworks */,
 				B19DB79B2E97486300FC0468 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -120,7 +117,6 @@
 				B19DB7962E97486300FC0468 /* Sources */,
 				B19DB7972E97486300FC0468 /* Frameworks */,
 				B19DB7982E97486300FC0468 /* Resources */,
-				B19BFDCA2E9E390A00A713FB /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -430,7 +426,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Conven/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
@@ -475,7 +471,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Conven/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";

@@ -1,4 +1,5 @@
 import SwiftUI
+import Translation
 
 // MARK: - 工具定义
 struct AppTool: Identifiable, Codable, Equatable {
@@ -9,7 +10,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     let type: ToolType
     
     enum ToolType: String, Codable {
-        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr,passwordManager, morse
+        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr, passwordManager, morse, imageTools
     }
     
     // Codable 支持 Color
@@ -54,13 +55,14 @@ class ToolsManager {
         AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard),
         AppTool(id: "ip", name: "IP 地址查询", icon: "network", color: .cyan, type: .ipLookup),
         AppTool(id: "http", name: "HTTP 请求", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest),
-//        AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
+        // AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
         AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor),
         AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json),
         AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator),
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
         AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
-        AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator)
+        AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator),
+        AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools)
     ]
     
     // 根据类型获取工具
@@ -106,8 +108,11 @@ class ToolsManager {
                 .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
             view = AnyView(passwordView)
             size = NSSize(width: 420, height: 560)
-        case .morse: // <-- 新增这个 case
+        case .morse:
             view = AnyView(MorseCodeToolView())
+            size = NSSize(width: 420, height: 560)
+        case .imageTools:
+            view = AnyView(ImageToolsView())
             size = NSSize(width: 420, height: 560)
         }
         
