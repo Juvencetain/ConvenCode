@@ -140,29 +140,6 @@ class UsageStatisticsService: ObservableObject {
             usage.date < cutoffDate
         }
     }
-    
-    // MARK: - 调试
-    
-    /// 重置所有数据（仅用于测试）
-    func resetStatistics() {
-        dailyUsages.removeAll()
-        saveStatistics()
-    }
-    
-    /// 生成模拟数据（仅用于测试）
-    func generateMockData() {
-        dailyUsages.removeAll()
-        let calendar = Calendar.current
-        
-        for i in 0..<30 {
-            if let date = calendar.date(byAdding: .day, value: -i, to: Date()) {
-                let randomCount = Int.random(in: 0...20)
-                dailyUsages.append(DailyUsage(date: date, openCount: randomCount))
-            }
-        }
-        
-        saveStatistics()
-    }
 }
 
 // MARK: - 使用统计视图（极简版）
@@ -354,10 +331,10 @@ struct MinimalLineChart: View {
     private func colorForCount(_ count: Int) -> Color {
         switch count {
         case 0: return Color(red: 0.5, green: 0.5, blue: 0.5)
-        case 1...3: return Color(red: 0.2, green: 0.5, blue: 1.0)
-        case 4...6: return Color(red: 0.2, green: 0.8, blue: 0.9)
-        case 7...10: return Color(red: 0.2, green: 0.9, blue: 0.4)
-        case 11...15: return Color(red: 1.0, green: 0.7, blue: 0.2)
+        case 1...50: return Color(red: 0.2, green: 0.5, blue: 1.0)
+        case 51...100: return Color(red: 0.2, green: 0.8, blue: 0.9)
+        case 101...200: return Color(red: 0.2, green: 0.9, blue: 0.4)
+        case 201...300: return Color(red: 1.0, green: 0.7, blue: 0.2)
         default: return Color(red: 1.0, green: 0.3, blue: 0.3)
         }
     }
@@ -494,10 +471,10 @@ struct UsageChart: View {
     
     private func barColor(for count: Int) -> Color {
         switch count {
-        case 0: return .gray
-        case 1...5: return .blue
-        case 6...10: return .green
-        case 11...15: return .orange
+        case 0...9: return .gray
+        case 10...49: return .blue
+        case 50...99: return .green
+        case 100...200: return .orange
         default: return .red
         }
     }
