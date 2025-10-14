@@ -29,6 +29,7 @@ struct CatMenuView: View {
                     .scaleEffect(0.5)                 // 稍微缩小动画本体
                     .offset(x: 50)                   // 轻微上移居中
                     .offset(y: -3)
+                    .allowsHitTesting(false)
                 
                 Divider()
                     .padding(.horizontal, 16)
