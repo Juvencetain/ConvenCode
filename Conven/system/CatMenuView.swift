@@ -64,7 +64,7 @@ struct CatMenuView: View {
                 
                 Divider()
                     .padding(.horizontal, 16)
-                                
+                
                 if viewModel.isAlive {
                     UsageStatsCard()
                         .padding(.horizontal, 8)
@@ -882,7 +882,7 @@ struct MenuButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(.easeInOut(duration: 0.6)) {
                 isHovered = hovering
             }
         }

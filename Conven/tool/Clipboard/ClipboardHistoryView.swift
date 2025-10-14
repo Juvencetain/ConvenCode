@@ -481,8 +481,8 @@ struct ClipboardItemCard: View {
                 }
                 .transition(
                     .asymmetric(
-                        insertion: .opacity.animation(.easeOut(duration: 0.25)),
-                        removal: .opacity.animation(.easeIn(duration: 0.2))
+                        insertion: .opacity.animation(.easeOut(duration: 0.65)),
+                        removal: .opacity.animation(.easeIn(duration: 0.6))
                     )
                 )
             }
@@ -497,7 +497,7 @@ struct ClipboardItemCard: View {
                 .stroke(isHovered ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
         )
         .animation(.easeInOut(duration: 0.3), value: isHovered)
-        .animation(.easeInOut(duration: 0.25), value: isCopied)
+        .animation(.easeInOut(duration: 0.65), value: isCopied)
         .onHover { hovering in
             onHover(hovering)
         }

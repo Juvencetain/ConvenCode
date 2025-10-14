@@ -1333,7 +1333,7 @@ struct SavedRequestCard: View {
                     .buttonStyle(.plain)
                     .pointingHandCursor()
                 }
-                .transition(.opacity.animation(.easeOut(duration: 0.25)))
+                .transition(.opacity.animation(.easeOut(duration: 0.65)))
             }
         }
         .padding(12)
