@@ -142,21 +142,24 @@ struct CatMenuView: View {
                     //小喵
                     Text(viewModel.catName)
                         .font(.system(size: 16, weight: .semibold))
-                    //金币
-                    if viewModel.isAlive {
-                        Image(systemName: "dollarsign.circle.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(.yellow)
-                        
-                        Text("\(Int(viewModel.coinBalance))/\(viewModel.maxCoinBalance)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1) // 确保单行显示
-                        
-                        Text(String(format: "+%.2f/s", viewModel.coinGenerationRate))
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary.opacity(0.7))
+                    HStack(spacing: 2) {
+                        //金币
+                        if viewModel.isAlive {
+                            Image(systemName: "dollarsign.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.yellow)
+                            
+                            Text("\(Int(viewModel.coinBalance))/\(viewModel.maxCoinBalance)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1) // 确保单行显示
+                            
+                            Text(String(format: "+%.2f/s", viewModel.coinGenerationRate))
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
                     }
+                    
                 }
                 
                 
