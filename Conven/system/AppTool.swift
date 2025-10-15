@@ -12,7 +12,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     enum ToolType: String, Codable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,jwtDebugger,cronParser,
-             regexTester,uuidGenerator,portScanner
+             regexTester,uuidGenerator,portScanner,hosts
     }
     
     // Codable 支持 Color
@@ -64,6 +64,7 @@ class ToolsManager {
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
         AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator),
+        AppTool(id: "hosts", name: "Hosts 编辑器", icon: "pencil.and.ruler.fill", color: .green, type: .hosts),
         AppTool(id: "portscan", name: "端口扫描", icon: "shippingbox.and.arrow.backward.fill", color: .indigo, type: .portScanner),
         AppTool(id: "regex", name: "正则表达式", icon: "text.magnifyingglass", color: .orange, type: .regexTester),
         AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator),
@@ -102,6 +103,9 @@ class ToolsManager {
         case .json:
             view = AnyView(JSONFormatterView())
             size = NSSize(width: 420, height: 560)
+        case .hosts:
+            view = AnyView(HostsView())
+            size = NSSize(width: 500, height: 600)
         case .ocr:
             view = AnyView(ScreenshotToolView())
             size = NSSize(width: 420, height: 560)

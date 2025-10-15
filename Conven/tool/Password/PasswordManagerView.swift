@@ -55,7 +55,21 @@ struct UnlockView: View {
                     .padding(.top, 10)
             }
         }
-        .onAppear(perform: authenticate)
+        // MARK: - 修改
+        // onAppear 时调用新的检查方法
+        .onAppear(perform: checkAuth)
+    }
+    
+    // MARK: - 新增
+    /// 检查认证状态，如果会话有效则直接解锁
+    private func checkAuth() {
+        if LocalAuthManager.shared.isSessionValid() {
+            withAnimation(.spring()) {
+                isUnlocked = true
+            }
+        } else {
+            authenticate()
+        }
     }
     
     private func authenticate() {
