@@ -10,7 +10,9 @@ struct AppTool: Identifiable, Codable, Equatable {
     let type: ToolType
     
     enum ToolType: String, Codable {
-        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator, ocr, passwordManager, morse, imageTools,iconGenerator
+        case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
+             ocr, passwordManager, morse, imageTools,iconGenerator,jwtDebugger,cronParser,
+             regexTester
     }
     
     // Codable 支持 Color
@@ -62,7 +64,10 @@ class ToolsManager {
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
         AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator),
+        AppTool(id: "regex", name: "正则表达式", icon: "text.magnifyingglass", color: .orange, type: .regexTester),
         AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator),
+        AppTool(id: "jwt", name: "JWT 解码器", icon: "key.viewfinder", color: .red, type: .jwtDebugger),
+        AppTool(id: "cron", name: "Cron 解析器", icon: "timer.square", color: .cyan, type: .cronParser),
         AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools)
     ]
     
@@ -101,6 +106,12 @@ class ToolsManager {
         case .calculator:
             view = AnyView(CalculatorView())
             size = NSSize(width: 420, height: 560)
+        case .cronParser:
+            view = AnyView(CronView())
+            size = NSSize(width: 450, height: 550)
+        case .regexTester:
+            view = AnyView(RegexView())
+            size = NSSize(width: 800, height: 600)
         case .translator:
             view = AnyView(GuideView())
             size = NSSize(width: 420, height: 560)
@@ -118,6 +129,9 @@ class ToolsManager {
         case .iconGenerator:
             view = AnyView(IconGeneratorView())
             size = NSSize(width: 420, height: 760)
+        case .jwtDebugger:
+            view = AnyView(JWTView())
+            size = NSSize(width: 800, height: 500)
         }
         let hostingController = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hostingController)
