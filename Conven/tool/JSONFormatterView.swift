@@ -33,41 +33,37 @@ struct JSONFormatterView: View {
     @State private var inputText = ""
     @State private var outputText = ""
     @State private var errorMessage: String?
-    @State private var isResultFullscreen = false
     @State private var selectedMode: JSONMode = .format
     @State private var showSuccessToast = false
     @State private var indentSize = 2
     @State private var sortKeys = true
+    @State private var showSettings = false
+    @State private var wrapText = true  // 是否自动换行
     
     // MARK: - Layout Constants
     private enum Layout {
-        static let defaultWidth: CGFloat = 420
-        static let defaultHeight: CGFloat = 560
-        static let fullscreenHeight: CGFloat = 800
-        static let horizontalPadding: CGFloat = 20
-        static let verticalSpacing: CGFloat = 12
-        static let cornerRadius: CGFloat = 10
-        static let minInputHeight: CGFloat = 120
+        static let width: CGFloat = 1200  // 固定大宽度
+        static let height: CGFloat = 800  // 固定高度
+        static let padding: CGFloat = 24
+        static let spacing: CGFloat = 16
+        static let radius: CGFloat = 12
     }
-    
-    // MARK: - JSON Processor
-    private let processor = JSONProcessor()
     
     // MARK: - Body
     var body: some View {
         ZStack {
-            backgroundView
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .ignoresSafeArea()
             
             VStack(spacing: 0) {
                 headerBar
+                Divider()
+                    .padding(.horizontal, Layout.padding)
+                    .padding(.vertical, 8)
                 contentArea
             }
         }
-        .frame(
-            width: Layout.defaultWidth,
-            height: isResultFullscreen ? Layout.fullscreenHeight : Layout.defaultHeight
-        )
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isResultFullscreen)
+        .frame(width: Layout.width, height: Layout.height)
         .overlay(alignment: .top) {
             if showSuccessToast {
                 toastView
@@ -75,231 +71,320 @@ struct JSONFormatterView: View {
         }
     }
     
-    // MARK: - Background
-    private var backgroundView: some View {
-        VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-            .opacity(1)
-            .ignoresSafeArea()
-    }
-    
     // MARK: - Header Bar
     private var headerBar: some View {
-        HStack(spacing: 12) {
-            headerTitle
+        HStack(spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: "curlybraces.square.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.orange.gradient)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("JSON 工具箱")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("格式化 · 压缩 · 转义")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
             Spacer()
-            if !outputText.isEmpty {
-                headerActions
+            
+            HStack(spacing: 10) {
+                if !outputText.isEmpty {
+                    ToolbarButton(icon: "doc.on.doc", label: "复制", tooltip: "复制结果到剪贴板") {
+                        copyToClipboard(outputText)
+                        showSuccessToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showSuccessToast = false
+                        }
+                    }
+                    
+                    ToolbarButton(icon: "arrow.2.squarepath", label: "交换", tooltip: "交换输入输出内容") {
+                        swapInputOutput()
+                    }
+                }
+                
+                ToolbarButton(icon: "gearshape", label: "设置", tooltip: "显示设置选项", isActive: showSettings) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showSettings.toggle()
+                    }
+                }
+                
+                ToolbarButton(icon: "plus.square", label: "新窗口", tooltip: "打开新的工具窗口") {
+                    openNewWindow()
+                }
             }
         }
-        .padding(.horizontal, Layout.horizontalPadding)
-        .padding(.vertical, 16)
-    }
-    
-    private var headerTitle: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "curlybraces.square.fill")
-                .font(.system(size: 16))
-                .foregroundStyle(.orange.gradient)
-            Text("JSON 工具箱")
-                .font(.system(size: 14, weight: .medium))
-        }
-    }
-    
-    private var headerActions: some View {
-        HStack(spacing: 8) {
-            ActionButtonJson(icon: "doc.on.doc", tooltip: "复制结果") {
-                copyToClipboard(outputText)
-                showSuccessToast = true
-            }
-            
-            ActionButtonJson(icon: "arrow.2.squarepath", tooltip: "交换输入输出") {
-                swapInputOutput()
-            }
-            
-            ActionButtonJson(icon: "plus.square", tooltip: "新建窗口") {
-                openNewWindow()
-            }
-            
-            ActionButtonJson(
-                icon: isResultFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                tooltip: isResultFullscreen ? "退出全屏" : "全屏显示"
-            ) {
-                isResultFullscreen.toggle()
-            }
-        }
+        .padding(.horizontal, Layout.padding)
+        .padding(.vertical, 18)
     }
     
     // MARK: - Content Area
     private var contentArea: some View {
-        VStack(spacing: Layout.verticalSpacing) {
-            if !isResultFullscreen {
-                inputSection
-                    .frame(maxHeight: outputText.isEmpty ? .infinity : nil)
-                    .transition(.opacity)
-            }
+        HStack(spacing: Layout.spacing) {
+            // 左侧：输入区域
+            inputSection
+                .frame(maxWidth: .infinity)
             
+            // 右侧：输出区域（如果有内容）
             if !outputText.isEmpty {
                 outputSection
-            }
-            
-            if isResultFullscreen || outputText.isEmpty {
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .padding(.bottom, 12)
+        .padding(Layout.padding)
     }
     
     // MARK: - Input Section
     private var inputSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("输入 JSON")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("输入内容")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(inputText.isEmpty ? "粘贴或输入 JSON 数据" : "\(inputText.count) 字符")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
             
             inputEditor
             
-            HStack(spacing: 8) {
-                modeSelector
-                controlButtons
-                Spacer()
-                if selectedMode == .format {
-                    formatOptions
-                }
-            }
+            controlPanel
             
             if let error = errorMessage {
-                ErrorLabel(message: error)
+                ErrorBanner(message: error)
             }
         }
-        .padding(.horizontal, Layout.horizontalPadding)
     }
     
     private var inputEditor: some View {
-        TextEditor(text: $inputText)
-            .font(.system(.body, design: .monospaced))
-            .scrollContentBackground(.hidden)
-            .padding(8)
-            .frame(minHeight: Layout.minInputHeight)
-            .frame(maxHeight: .infinity)
-            .background(Color.white.opacity(0.15))
-            .cornerRadius(Layout.cornerRadius)
-            .onChange(of: inputText) { _ in
-                errorMessage = nil
+        ZStack(alignment: .topLeading) {
+            if inputText.isEmpty {
+                Text("粘贴或输入 JSON 数据...")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.secondary.opacity(0.5))
+                    .padding(12)
+                    .allowsHitTesting(false)
             }
+            
+            TextEditor(text: $inputText)
+                .font(.system(size: 13, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .frame(maxHeight: .infinity)
+                .onChange(of: inputText) { _ in
+                    errorMessage = nil
+                }
+        }
+        .frame(minHeight: 200)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.radius)
+                .fill(Color.primary.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radius)
+                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+        )
     }
     
-    private var modeSelector: some View {
+    private var controlPanel: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                modeSelectorButton
+                Spacer()
+                
+                Button {
+                    processJSON()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.fill")
+                        Text("执行")
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(minWidth: 80)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .keyboardShortcut(.return, modifiers: .command)
+                
+                Button {
+                    clearAll()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash")
+                        Text("清空")
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(minWidth: 80)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .keyboardShortcut("k", modifiers: .command)
+            }
+            
+            if showSettings && selectedMode == .format {
+                settingsPanel
+                    .transition(.opacity)
+            }
+        }
+    }
+    
+    private var modeSelectorButton: some View {
         Menu {
             ForEach(JSONMode.allCases, id: \.self) { mode in
                 Button {
                     selectedMode = mode
+                    if mode != .format {
+                        showSettings = false
+                    }
                 } label: {
-                    Label(mode.rawValue, systemImage: mode.icon)
+                    HStack {
+                        Image(systemName: mode.icon)
+                        Text(mode.rawValue)
+                        if selectedMode == mode {
+                            Spacer()
+                            Image(systemName: "checkmark")
+                        }
+                    }
                 }
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Image(systemName: selectedMode.icon)
+                    .font(.system(size: 14))
                 Text(selectedMode.rawValue)
+                    .font(.system(size: 13, weight: .medium))
                 Image(systemName: "chevron.down")
-                    .font(.caption)
+                    .font(.system(size: 10))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .background(Color.accentColor)
             .foregroundColor(.white)
-            .cornerRadius(6)
+            .cornerRadius(8)
         }
         .menuStyle(.borderlessButton)
         .help(selectedMode.tooltip)
     }
     
-    private var controlButtons: some View {
-        HStack(spacing: 8) {
-            Button("执行", action: processJSON)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return, modifiers: .command)
-            
-            Button("清空", action: clearAll)
-                .buttonStyle(.bordered)
-                .keyboardShortcut("k", modifiers: .command)
-        }
-    }
-    
-    private var formatOptions: some View {
-        HStack(spacing: 12) {
-            Picker("缩进", selection: $indentSize) {
-                Text("2").tag(2)
-                Text("4").tag(4)
-                Text("Tab").tag(1)
+    private var settingsPanel: some View {
+        HStack(spacing: 20) {
+            HStack(spacing: 8) {
+                Text("缩进:")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                
+                Picker("", selection: $indentSize) {
+                    Text("2 空格").tag(2)
+                    Text("4 空格").tag(4)
+                    Text("Tab").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
             }
-            .pickerStyle(.segmented)
-            .frame(width: 120)
             
-            Toggle("排序键", isOn: $sortKeys)
-                .toggleStyle(.checkbox)
-                .help("按字母顺序排序对象键")
+            Spacer()
+            
+            Toggle(isOn: $sortKeys) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 11))
+                    Text("按键排序")
+                        .font(.system(size: 12))
+                }
+            }
+            .toggleStyle(.checkbox)
+            .help("按字母顺序排序对象键")
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.primary.opacity(0.05))
+        )
     }
     
     // MARK: - Output Section
     private var outputSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                sectionHeader("处理结果")
-                Spacer()
-                if !outputText.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("处理结果")
+                        .font(.system(size: 13, weight: .semibold))
                     Text("\(outputText.count) 字符")
-                        .font(.caption)
+                        .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
+                
+                Spacer()
+                
+                HStack(spacing: 8) {
+                    SmallActionButton(icon: "doc.on.doc", tooltip: "复制结果") {
+                        copyToClipboard(outputText)
+                        showSuccessToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showSuccessToast = false
+                        }
+                    }
+                    
+                    SmallActionButton(
+                        icon: wrapText ? "arrow.turn.down.left" : "arrow.right.to.line",
+                        tooltip: wrapText ? "禁用自动换行" : "启用自动换行"
+                    ) {
+                        wrapText.toggle()
+                    }
+                    
+                    SmallActionButton(icon: "arrow.clockwise", tooltip: "重新处理") {
+                        processJSON()
+                    }
+                }
             }
-            .padding(.horizontal, Layout.horizontalPadding)
             
             outputViewer
         }
     }
     
     private var outputViewer: some View {
-        ScrollView {
+        ScrollView(wrapText ? .vertical : [.horizontal, .vertical]) {
             Text(selectedMode == .format ? colorizedJSON(outputText) : AttributedString(outputText))
-                .font(.system(.body, design: .monospaced))
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .font(.system(size: 13, design: .monospaced))
+                .padding(16)
+                .frame(maxWidth: wrapText ? .infinity : nil, alignment: .topLeading)
                 .textSelection(.enabled)
+                .fixedSize(horizontal: !wrapText, vertical: true)
         }
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(8)
-        .frame(maxHeight: isResultFullscreen ? .infinity : nil)
-        .padding(.horizontal, Layout.horizontalPadding)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.radius)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radius)
+                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+        )
     }
     
     // MARK: - Toast View
     private var toastView: some View {
-        Text("✓ 已复制到剪贴板")
-            .font(.system(size: 13))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.green.opacity(0.9))
-            .foregroundColor(.white)
-            .cornerRadius(20)
-            .padding(.top, 60)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.3).delay(1.5)) {
-                    showSuccessToast = false
-                }
-            }
-    }
-    
-    // MARK: - Helper Views
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 12))
-            .foregroundColor(.secondary)
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14))
+            Text("已复制到剪贴板")
+                .font(.system(size: 13, weight: .medium))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(Color.green.opacity(0.9))
+        )
+        .foregroundColor(.white)
+        .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
+        .padding(.top, 80)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
     
     // MARK: - Actions
     private func processJSON() {
-        // 清理输入文本
         let trimmedInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !trimmedInput.isEmpty else {
@@ -309,39 +394,35 @@ struct JSONFormatterView: View {
         }
         
         do {
-            outputText = try processor.process(
-                trimmedInput,
-                mode: selectedMode,
-                indentSize: indentSize,
-                sortKeys: sortKeys
-            )
-            errorMessage = nil
-            
-            // Auto-fullscreen for large outputs
-            if outputText.count > 1000 && selectedMode == .format {
-                isResultFullscreen = true
+            switch selectedMode {
+            case .format:
+                outputText = try formatJSON(trimmedInput, indentSize: indentSize, sortKeys: sortKeys)
+            case .minify:
+                outputText = try minifyJSON(trimmedInput)
+            case .escape:
+                outputText = escapeString(trimmedInput)
+            case .unescape:
+                outputText = try unescapeString(trimmedInput)
             }
-        } catch let error as JSONProcessor.ProcessError {
-            // 处理自定义错误
-            errorMessage = error.errorDescription
-            outputText = ""
-        } catch let error as NSError {
-            // 处理系统错误，提供更友好的错误信息
-            if error.domain == NSCocoaErrorDomain {
-                switch error.code {
-                case 3840:
-                    errorMessage = "JSON 格式错误：请检查括号、引号是否匹配"
-                case 3841:
-                    errorMessage = "JSON 格式错误：意外的结束"
-                default:
-                    errorMessage = "JSON 解析失败：\(error.localizedDescription)"
+            
+            errorMessage = nil
+        } catch {
+            if let nsError = error as NSError? {
+                if nsError.domain == NSCocoaErrorDomain {
+                    switch nsError.code {
+                    case 3840:
+                        errorMessage = "JSON 格式错误：请检查括号、引号是否匹配"
+                    case 3841:
+                        errorMessage = "JSON 格式错误：意外的结束"
+                    default:
+                        errorMessage = "JSON 解析失败：\(nsError.localizedDescription)"
+                    }
+                } else {
+                    errorMessage = "处理失败：\(nsError.localizedDescription)"
                 }
             } else {
-                errorMessage = "处理失败：\(error.localizedDescription)"
+                errorMessage = "未知错误：\(error.localizedDescription)"
             }
-            outputText = ""
-        } catch {
-            errorMessage = "未知错误：\(error.localizedDescription)"
             outputText = ""
         }
     }
@@ -350,36 +431,25 @@ struct JSONFormatterView: View {
         inputText = ""
         outputText = ""
         errorMessage = nil
-        isResultFullscreen = false
+        showSettings = false
     }
     
     private func swapInputOutput() {
         guard !outputText.isEmpty else { return }
         
-        // 保存当前的输出文本
         let temp = outputText
         
-        // 如果当前是格式化或压缩模式，直接交换
-        // 如果是转义/去转义模式，需要特殊处理
         switch selectedMode {
         case .format, .minify:
-            // JSON 处理模式，直接交换
             inputText = temp
             outputText = ""
         case .escape, .unescape:
-            // 字符串处理模式，交换并切换模式
             inputText = temp
             outputText = ""
-            // 自动切换到相反的模式
             selectedMode = (selectedMode == .escape) ? .unescape : .escape
         }
         
         errorMessage = nil
-        
-        // 如果是全屏状态，退出全屏以便看到输入框
-        if isResultFullscreen {
-            isResultFullscreen = false
-        }
     }
     
     private func copyToClipboard(_ text: String) {
@@ -397,7 +467,7 @@ struct JSONFormatterView: View {
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.setContentSize(NSSize(width: Layout.defaultWidth, height: Layout.defaultHeight))
+        window.setContentSize(NSSize(width: Layout.width, height: Layout.height))
         window.center()
         window.level = .floating
         window.makeKeyAndOrderFront(nil)
@@ -405,21 +475,149 @@ struct JSONFormatterView: View {
         NSApp.activate(ignoringOtherApps: true)
     }
     
+    // MARK: - JSON Processing Methods
+    private func formatJSON(_ input: String, indentSize: Int, sortKeys: Bool) throws -> String {
+        guard let data = input.data(using: .utf8) else {
+            throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的 JSON 格式"])
+        }
+        
+        let jsonObject = try JSONSerialization.jsonObject(with: data, options: .allowFragments)
+        
+        var options: JSONSerialization.WritingOptions = [.prettyPrinted]
+        if sortKeys {
+            options.insert(.sortedKeys)
+        }
+        if #available(macOS 13.0, *) {
+            options.insert(.withoutEscapingSlashes)
+        }
+        
+        let formattedData = try JSONSerialization.data(withJSONObject: jsonObject, options: options)
+        guard var formatted = String(data: formattedData, encoding: .utf8) else {
+            throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法转换为字符串"])
+        }
+        
+        if indentSize != 2 {
+            let indent = indentSize == 1 ? "\t" : String(repeating: " ", count: indentSize)
+            formatted = adjustIndentation(formatted, to: indent)
+        }
+        
+        return formatted
+    }
+    
+    private func minifyJSON(_ input: String) throws -> String {
+        guard let data = input.data(using: .utf8) else {
+            throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的 JSON 格式"])
+        }
+        
+        let jsonObject = try JSONSerialization.jsonObject(with: data, options: .allowFragments)
+        
+        var options: JSONSerialization.WritingOptions = []
+        if #available(macOS 13.0, *) {
+            options.insert(.withoutEscapingSlashes)
+        }
+        
+        let minifiedData = try JSONSerialization.data(withJSONObject: jsonObject, options: options)
+        guard let minified = String(data: minifiedData, encoding: .utf8) else {
+            throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法转换为字符串"])
+        }
+        
+        return minified
+    }
+    
+    private func escapeString(_ input: String) -> String {
+        var escaped = input
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+            .replacingOccurrences(of: "\u{8}", with: "\\b")
+            .replacingOccurrences(of: "\u{12}", with: "\\f")
+        
+        var result = ""
+        for scalar in escaped.unicodeScalars {
+            if scalar.value > 127 {
+                result += String(format: "\\u%04x", scalar.value)
+            } else {
+                result.append(Character(scalar))
+            }
+        }
+        
+        return result
+    }
+    
+    private func unescapeString(_ input: String) throws -> String {
+        if let data = "\"\(input)\"".data(using: .utf8),
+           let unescaped = try? JSONSerialization.jsonObject(with: data) as? String {
+            return unescaped
+        }
+        
+        var result = ""
+        var iterator = input.makeIterator()
+        
+        while let char = iterator.next() {
+            if char == "\\" {
+                guard let next = iterator.next() else {
+                    throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的转义字符串"])
+                }
+                
+                switch next {
+                case "n": result.append("\n")
+                case "r": result.append("\r")
+                case "t": result.append("\t")
+                case "b": result.append("\u{8}")
+                case "f": result.append("\u{12}")
+                case "\"": result.append("\"")
+                case "\\": result.append("\\")
+                case "/": result.append("/")
+                case "u":
+                    var hex = ""
+                    for _ in 0..<4 {
+                        guard let h = iterator.next() else {
+                            throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的转义字符串"])
+                        }
+                        hex.append(h)
+                    }
+                    guard let code = Int(hex, radix: 16),
+                          let scalar = Unicode.Scalar(code) else {
+                        throw NSError(domain: "JSONFormatter", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的转义字符串"])
+                    }
+                    result.append(Character(scalar))
+                default:
+                    result.append(next)
+                }
+            } else {
+                result.append(char)
+            }
+        }
+        
+        return result
+    }
+    
+    private func adjustIndentation(_ json: String, to indent: String) -> String {
+        let lines = json.components(separatedBy: .newlines)
+        return lines.map { line in
+            guard let firstNonSpace = line.firstIndex(where: { !$0.isWhitespace }) else {
+                return line
+            }
+            let spaces = line.distance(from: line.startIndex, to: firstNonSpace)
+            let level = spaces / 2
+            return String(repeating: indent, count: level) + line[firstNonSpace...]
+        }.joined(separator: "\n")
+    }
+    
     // MARK: - Syntax Highlighting
     private func colorizedJSON(_ json: String) -> AttributedString {
         var attributed = AttributedString(json)
         let nsString = json as NSString
         
-        // Color scheme
         let colors = (
             key: Color.cyan,
             string: Color.green,
             number: Color.orange,
-            keyword: Color.purple,
-            punctuation: Color.gray
+            keyword: Color.purple
         )
         
-        // Apply colors using efficient regex patterns
         applyPattern(#"\"([^\"\\]|\\.)*\"\s*:"#, to: &attributed, in: nsString, color: colors.key)
         applyPattern(#":\s*\"([^\"\\]|\\.)*\""#, to: &attributed, in: nsString, color: colors.string, skipPrefix: 1)
         applyPattern(#":\s*(-?\d+(\.\d+)?([eE][+-]?\d+)?)"#, to: &attributed, in: nsString, color: colors.number, skipPrefix: 1)
@@ -449,8 +647,33 @@ struct JSONFormatterView: View {
 
 // MARK: - Helper Components
 
-// [FIXED] Changed 'struct' to 'private struct' to resolve redeclaration error
-private struct ActionButtonJson: View {
+struct ToolbarButton: View {
+    let icon: String
+    let label: String
+    let tooltip: String
+    var isActive: Bool = false
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                Text(label)
+                    .font(.system(size: 9))
+            }
+            .frame(width: 60, height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isActive ? Color.accentColor.opacity(0.2) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+    }
+}
+
+struct SmallActionButton: View {
     let icon: String
     let tooltip: String
     let action: () -> Void
@@ -458,202 +681,54 @@ private struct ActionButtonJson: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
+                .font(.system(size: 12))
+                .frame(width: 24, height: 24)
         }
         .buttonStyle(.plain)
         .help(tooltip)
     }
 }
 
-struct ErrorLabel: View {
+struct ErrorBanner: View {
     let message: String
     
     var body: some View {
-        Label(message, systemImage: "exclamationmark.triangle.fill")
-            .foregroundColor(.red)
-            .font(.system(size: 12))
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14))
+            Text(message)
+                .font(.system(size: 12))
+            Spacer()
+        }
+        .foregroundColor(.white)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.red.opacity(0.8))
+        )
     }
 }
 
-// MARK: - JSON Processor
-class JSONProcessor {
-    enum ProcessError: LocalizedError {
-        case invalidJSON
-        case invalidEscapedString
-        case processingFailed(String)
-        
-        var errorDescription: String? {
-            switch self {
-            case .invalidJSON:
-                return "无效的 JSON 格式"
-            case .invalidEscapedString:
-                return "无效的转义字符串"
-            case .processingFailed(let message):
-                return "处理失败: \(message)"
-            }
-        }
+struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(Color.accentColor.opacity(configuration.isPressed ? 0.7 : 1.0))
+            .foregroundColor(.white)
+            .cornerRadius(8)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
     }
-    
-    func process(_ input: String, mode: JSONMode, indentSize: Int = 2, sortKeys: Bool = true) throws -> String {
-        switch mode {
-        case .format:
-            return try formatJSON(input, indentSize: indentSize, sortKeys: sortKeys)
-        case .minify:
-            return try minifyJSON(input)
-        case .escape:
-            return escapeString(input)
-        case .unescape:
-            return try unescapeString(input)
-        }
-    }
-    
-    private func formatJSON(_ input: String, indentSize: Int, sortKeys: Bool) throws -> String {
-        guard let data = input.data(using: .utf8) else {
-            throw ProcessError.invalidJSON
-        }
-        
-        do {
-            let jsonObject = try JSONSerialization.jsonObject(with: data, options: .allowFragments)
-            
-            var options: JSONSerialization.WritingOptions = [.prettyPrinted]
-            if sortKeys {
-                options.insert(.sortedKeys)
-            }
-            if #available(macOS 13.0, *) {
-                options.insert(.withoutEscapingSlashes)
-            }
-            
-            let formattedData = try JSONSerialization.data(withJSONObject: jsonObject, options: options)
-            guard var formatted = String(data: formattedData, encoding: .utf8) else {
-                throw ProcessError.processingFailed("无法转换为字符串")
-            }
-            
-            // Adjust indentation if needed
-            if indentSize != 2 {
-                let indent = indentSize == 1 ? "\t" : String(repeating: " ", count: indentSize)
-                formatted = adjustIndentation(formatted, to: indent)
-            }
-            
-            return formatted
-        } catch {
-            // 重新抛出更友好的错误信息
-            if (error as NSError).domain == NSCocoaErrorDomain {
-                throw ProcessError.invalidJSON
-            }
-            throw error
-        }
-    }
-    
-    private func minifyJSON(_ input: String) throws -> String {
-        guard let data = input.data(using: .utf8) else {
-            throw ProcessError.invalidJSON
-        }
-        
-        do {
-            let jsonObject = try JSONSerialization.jsonObject(with: data, options: .allowFragments)
-            
-            var options: JSONSerialization.WritingOptions = []
-            if #available(macOS 13.0, *) {
-                options.insert(.withoutEscapingSlashes)
-            }
-            
-            let minifiedData = try JSONSerialization.data(withJSONObject: jsonObject, options: options)
-            guard let minified = String(data: minifiedData, encoding: .utf8) else {
-                throw ProcessError.processingFailed("无法转换为字符串")
-            }
-            
-            return minified
-        } catch {
-            // 重新抛出更友好的错误信息
-            if (error as NSError).domain == NSCocoaErrorDomain {
-                throw ProcessError.invalidJSON
-            }
-            throw error
-        }
-    }
-    
-    private func escapeString(_ input: String) -> String {
-        var escaped = input
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\r")
-            .replacingOccurrences(of: "\t", with: "\\t")
-            .replacingOccurrences(of: "\u{8}", with: "\\b")
-            .replacingOccurrences(of: "\u{12}", with: "\\f")
-        
-        // Handle Unicode characters
-        var result = ""
-        for scalar in escaped.unicodeScalars {
-            if scalar.value > 127 {
-                result += String(format: "\\u%04x", scalar.value)
-            } else {
-                result.append(Character(scalar))
-            }
-        }
-        
-        return result
-    }
-    
-    private func unescapeString(_ input: String) throws -> String {
-        // Try to parse as JSON string first
-        if let data = "\"\(input)\"".data(using: .utf8),
-           let unescaped = try? JSONSerialization.jsonObject(with: data) as? String {
-            return unescaped
-        }
-        
-        // Manual unescape as fallback
-        var result = ""
-        var iterator = input.makeIterator()
-        
-        while let char = iterator.next() {
-            if char == "\\" {
-                guard let next = iterator.next() else {
-                    throw ProcessError.invalidEscapedString
-                }
-                
-                switch next {
-                case "n": result.append("\n")
-                case "r": result.append("\r")
-                case "t": result.append("\t")
-                case "b": result.append("\u{8}")
-                case "f": result.append("\u{12}")
-                case "\"": result.append("\"")
-                case "\\": result.append("\\")
-                case "/": result.append("/")
-                case "u":
-                    // Handle Unicode escape
-                    var hex = ""
-                    for _ in 0..<4 {
-                        guard let h = iterator.next() else {
-                            throw ProcessError.invalidEscapedString
-                        }
-                        hex.append(h)
-                    }
-                    guard let code = Int(hex, radix: 16),
-                          let scalar = Unicode.Scalar(code) else {
-                        throw ProcessError.invalidEscapedString
-                    }
-                    result.append(Character(scalar))
-                default:
-                    result.append(next)
-                }
-            } else {
-                result.append(char)
-            }
-        }
-        
-        return result
-    }
-    
-    private func adjustIndentation(_ json: String, to indent: String) -> String {
-        let lines = json.components(separatedBy: .newlines)
-        return lines.map { line in
-            guard let firstNonSpace = line.firstIndex(where: { !$0.isWhitespace }) else {
-                return line
-            }
-            let spaces = line.distance(from: line.startIndex, to: firstNonSpace)
-            let level = spaces / 2
-            return String(repeating: indent, count: level) + line[firstNonSpace...]
-        }.joined(separator: "\n")
+}
+
+struct SecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(Color.primary.opacity(configuration.isPressed ? 0.15 : 0.1))
+            .foregroundColor(.primary)
+            .cornerRadius(8)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
     }
 }
