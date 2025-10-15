@@ -88,6 +88,12 @@ struct CatConfig {
         static let toolRewardMin: Int = 1
         static let toolRewardMax: Int = 5
         static let toolRewardEnabled: Bool = true
+        
+        //金币系统配置
+        struct CoinSystem {
+            static let generationRatePerSecond: Double = 0.1 // 每秒生成0.1个金币
+            static let maxBalance: Int = 350 // 最大金币持有量
+        }
     }
     
     // MARK: - 通知配置
@@ -188,6 +194,10 @@ struct CatConfig {
         static let totalPlayCount = "cat_total_play_count"
         static let totalFeedCount = "cat_total_feed_count"
         static let totalCleanCount = "cat_total_clean_count"
+        
+        //金币存储键
+        static let coinBalance = "cat_coin_balance"
+        static let lastCoinUpdateTime = "cat_last_coin_update_time"
     }
 }
 
