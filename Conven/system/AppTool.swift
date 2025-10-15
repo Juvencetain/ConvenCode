@@ -12,7 +12,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     enum ToolType: String, Codable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,jwtDebugger,cronParser,
-             regexTester
+             regexTester,uuidGenerator,portScanner
     }
     
     // Codable 支持 Color
@@ -64,10 +64,12 @@ class ToolsManager {
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
         AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator),
+        AppTool(id: "portscan", name: "端口扫描", icon: "shippingbox.and.arrow.backward.fill", color: .indigo, type: .portScanner),
         AppTool(id: "regex", name: "正则表达式", icon: "text.magnifyingglass", color: .orange, type: .regexTester),
         AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator),
         AppTool(id: "jwt", name: "JWT 解码器", icon: "key.viewfinder", color: .red, type: .jwtDebugger),
         AppTool(id: "cron", name: "Cron 解析器", icon: "timer.square", color: .cyan, type: .cronParser),
+        AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator),
         AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools)
     ]
     
@@ -105,6 +107,12 @@ class ToolsManager {
             size = NSSize(width: 420, height: 560)
         case .calculator:
             view = AnyView(CalculatorView())
+            size = NSSize(width: 420, height: 560)
+        case .uuidGenerator:
+            view = AnyView(UUIDGeneratorView())
+            size = NSSize(width: 420, height: 560)
+        case .portScanner:
+            view = AnyView(PortScannerView())
             size = NSSize(width: 420, height: 560)
         case .cronParser:
             view = AnyView(CronView())
