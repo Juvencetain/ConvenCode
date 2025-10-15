@@ -13,6 +13,12 @@ class CatViewModel: ObservableObject {
     @Published var startDateTime: String
     @Published var catName: String
     
+    //新增: 金币相关属性
+    @Published var coinBalance: Double
+    @Published var maxCoinBalance: Int = CatConfig.GamePlay.CoinSystem.maxBalance
+    @Published var coinGenerationRate: Double = CatConfig.GamePlay.CoinSystem.generationRatePerSecond
+    
+    
     // MARK: - Statistics
     @Published var totalPlayCount: Int
     @Published var totalFeedCount: Int
@@ -20,6 +26,7 @@ class CatViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private var timer: Timer? // 用于属性衰减的计时器
+    private var coinTimer: Timer? // ⭐ 新增: 金币专用计时器
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
     private let aiAssistant: CatAIAssistant = DefaultCatAI()
@@ -49,6 +56,8 @@ class CatViewModel: ObservableObject {
         self.totalPlayCount = userDefaults.integer(forKey: CatConfig.StorageKeys.totalPlayCount)
         self.totalFeedCount = userDefaults.integer(forKey: CatConfig.StorageKeys.totalFeedCount)
         self.totalCleanCount = userDefaults.integer(forKey: CatConfig.StorageKeys.totalCleanCount)
+        //初始化金币
+        self.coinBalance = userDefaults.double(forKey: CatConfig.StorageKeys.coinBalance)
         
         // 加载或创建开始时间
         if let savedDateTime = userDefaults.string(forKey: CatConfig.StorageKeys.startDateTime) {
@@ -60,14 +69,30 @@ class CatViewModel: ObservableObject {
         
         // 初始化完成后执行其他操作
         applyOfflinePenalty()
+        applyOfflineCoinGeneration() //新增: 计算离线金币
         checkLiveness()
         
         if isAlive {
             startTimer()
+            startCoinTimer() //新增: 启动金币计时器
             scheduleDailyAINotifications() // 注册每日定时AI通知
         }
         
         setupSubscribers()
+    }
+    
+    // MARK: - Offline Coin Generation
+    // 计算离线金币收益
+    private func applyOfflineCoinGeneration() {
+        guard let lastUpdate = userDefaults.object(forKey: CatConfig.StorageKeys.lastCoinUpdateTime) as? Date else { return }
+        
+        let timePassed = Date().timeIntervalSince(lastUpdate)
+        let generatedCoins = timePassed * coinGenerationRate
+        
+        if generatedCoins > 0 {
+            coinBalance = min(Double(maxCoinBalance), coinBalance + generatedCoins)
+            print("💰 离线 \(Int(timePassed)) 秒, 获得 \(generatedCoins) 金币, 当前余额: \(coinBalance)")
+        }
     }
     
     // MARK: - Offline Penalty
@@ -185,6 +210,10 @@ class CatViewModel: ObservableObject {
         userDefaults.set(totalPlayCount, forKey: CatConfig.StorageKeys.totalPlayCount)
         userDefaults.set(totalFeedCount, forKey: CatConfig.StorageKeys.totalFeedCount)
         userDefaults.set(totalCleanCount, forKey: CatConfig.StorageKeys.totalCleanCount)
+        
+        //保存金币数据
+        userDefaults.set(coinBalance, forKey: CatConfig.StorageKeys.coinBalance)
+        userDefaults.set(Date(), forKey: CatConfig.StorageKeys.lastCoinUpdateTime)
     }
     
     private static func createStartTime() -> String {
@@ -210,6 +239,21 @@ class CatViewModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: CatConfig.GamePlay.decayInterval, repeats: true) { [weak self] _ in
             self?.reduceStats()
         }
+    }
+    
+    // 金币增长计时器
+    private func startCoinTimer() {
+        coinTimer?.invalidate()
+        coinTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.generateCoins()
+        }
+    }
+    
+    //金币增长逻辑
+    @objc private func generateCoins() {
+        guard isAlive, coinBalance < Double(maxCoinBalance) else { return }
+        
+        coinBalance = min(Double(maxCoinBalance), coinBalance + coinGenerationRate)
     }
     
     func reduceStats() {
@@ -279,7 +323,10 @@ class CatViewModel: ObservableObject {
         totalFeedCount = 0
         totalCleanCount = 0
         
+        coinBalance = 0 //重置金币
+        
         startTimer()
+        startCoinTimer() //启动金币计时器
         scheduleDailyAINotifications() // 重启时也重新注册通知
         saveData()
     }

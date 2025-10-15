@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1CBE573E2E9FD2B900849AD0 /* .gitignore in Sources */ = {isa = PBXBuildFile; fileRef = 1CBE573D2E9FD2A300849AD0 /* .gitignore */; };
 		B19BFDC22E9E365700A713FB /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = B19BFDC12E9E365700A713FB /* Lottie */; };
 /* End PBXBuildFile section */
 
@@ -28,7 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		B19BFED92E9EBACA00A713FB /* Translation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Translation.framework; path = System/Library/Frameworks/Translation.framework; sourceTree = SDKROOT; };
+		1CBE573D2E9FD2A300849AD0 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		B19DB79A2E97486300FC0468 /* Conven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Conven.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B19DB7AC2E97486400FC0468 /* ConvenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConvenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B19DB7B62E97486400FC0468 /* ConvenUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConvenUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -78,21 +79,13 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		B19BFED82E9EBACA00A713FB /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				B19BFED92E9EBACA00A713FB /* Translation.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		B19DB7912E97486300FC0468 = {
 			isa = PBXGroup;
 			children = (
+				1CBE573D2E9FD2A300849AD0 /* .gitignore */,
 				B19DB79C2E97486300FC0468 /* Conven */,
 				B19DB7AF2E97486400FC0468 /* ConvenTests */,
 				B19DB7B92E97486400FC0468 /* ConvenUITests */,
-				B19BFED82E9EBACA00A713FB /* Frameworks */,
 				B19DB79B2E97486300FC0468 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -255,6 +248,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1CBE573E2E9FD2B900849AD0 /* .gitignore in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
