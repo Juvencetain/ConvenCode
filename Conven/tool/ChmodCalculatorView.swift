@@ -41,6 +41,7 @@ struct ChmodCalculatorView: View {
                 .padding(20)
             }
         }
+        .focusable(false)
         .frame(width: 420, height: 560)
     }
     
@@ -71,16 +72,16 @@ struct ChmodCalculatorView: View {
             .font(.caption)
             .foregroundColor(.secondary)
             
-            PermissionRow(group: .owner, read: $ownerRead, write: $ownerWrite, execute: $ownerExecute)
-            PermissionRow(group: .group, read: $groupRead, write: $groupWrite, execute: $groupExecute)
-            PermissionRow(group: .other, read: $otherRead, write: $otherWrite, execute: $otherExecute)
+            ChmodPermissionRow(group: .owner, read: $ownerRead, write: $ownerWrite, execute: $ownerExecute)
+            ChmodPermissionRow(group: .group, read: $groupRead, write: $groupWrite, execute: $groupExecute)
+            ChmodPermissionRow(group: .other, read: $otherRead, write: $otherWrite, execute: $otherExecute)
         }
     }
     
     private var resultDisplay: some View {
         VStack(spacing: 15) {
-            ResultRow(label: "Octal a", value: octalResult)
-            ResultRow(label: "Symbolic", value: symbolicResult, isMonospaced: true)
+            ChmodResultRow(label: "Octal", value: octalResult)
+            ChmodResultRow(label: "Symbolic", value: symbolicResult, isMonospaced: true)
         }
         .padding()
         .background(Color.white.opacity(0.1))
@@ -103,8 +104,8 @@ struct ChmodCalculatorView: View {
     }
 }
 
-// MARK: - PermissionRow
-struct PermissionRow: View {
+// MARK: - ChmodPermissionRow
+struct ChmodPermissionRow: View {
     let group: ChmodCalculatorView.PermissionGroup
     @Binding var read: Bool
     @Binding var write: Bool
@@ -125,8 +126,8 @@ struct PermissionRow: View {
     }
 }
 
-// MARK: - ResultRow
-struct ResultRow: View {
+// MARK: - ChmodResultRow
+struct ChmodResultRow: View {
     let label: String
     let value: String
     var isMonospaced: Bool = false
@@ -142,6 +143,7 @@ struct ResultRow: View {
         }
     }
 }
+
 
 #Preview {
     ChmodCalculatorView()

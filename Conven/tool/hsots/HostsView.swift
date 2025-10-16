@@ -42,7 +42,7 @@ struct HostEntryRow: View {
             .buttonStyle(.plain)
             .contentShape(Rectangle())
         }
-        .focusable()
+        .focusable(false)
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
         .background(Color.black.opacity(0.05))

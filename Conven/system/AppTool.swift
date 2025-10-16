@@ -1,6 +1,13 @@
 import SwiftUI
 import Translation
 
+// MARK: - 工具分类
+enum ToolCategory: String, CaseIterable, Codable {
+    case development = "开发工具"
+    case daily = "日常工具"
+    case fun = "趣味工具"
+}
+
 // MARK: - 工具定义
 struct AppTool: Identifiable, Codable, Equatable {
     let id: String
@@ -8,24 +15,28 @@ struct AppTool: Identifiable, Codable, Equatable {
     let icon: String
     let color: Color
     let type: ToolType
+    let description: String
+    let category: ToolCategory
     
     enum ToolType: String, Codable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
-             ocr, passwordManager, morse, imageTools,iconGenerator,jwtDebugger,cronParser,
-             regexTester,uuidGenerator,portScanner,hosts
+             ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
+             regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor
     }
     
     // Codable 支持 Color
     enum CodingKeys: String, CodingKey {
-        case id, name, icon, colorHex, type
+        case id, name, icon, colorHex, type, description, category
     }
     
-    init(id: String, name: String, icon: String, color: Color, type: ToolType) {
+    init(id: String, name: String, icon: String, color: Color, type: ToolType, description: String, category: ToolCategory) {
         self.id = id
         self.name = name
         self.icon = icon
         self.color = color
         self.type = type
+        self.description = description
+        self.category = category
     }
     
     init(from decoder: Decoder) throws {
@@ -36,6 +47,8 @@ struct AppTool: Identifiable, Codable, Equatable {
         let colorHex = try container.decode(String.self, forKey: .colorHex)
         color = Color(hex: colorHex) ?? .blue
         type = try container.decode(ToolType.self, forKey: .type)
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? "" // Handle optional description for backward compatibility
+        category = try container.decodeIfPresent(ToolCategory.self, forKey: .category) ?? .daily // Default category
     }
     
     func encode(to encoder: Encoder) throws {
@@ -45,6 +58,8 @@ struct AppTool: Identifiable, Codable, Equatable {
         try container.encode(icon, forKey: .icon)
         try container.encode(color.toHex(), forKey: .colorHex)
         try container.encode(type, forKey: .type)
+        try container.encode(description, forKey: .description)
+        try container.encode(category, forKey: .category)
     }
 }
 
@@ -54,24 +69,31 @@ class ToolsManager {
     
     // 所有可用工具的统一定义（单一数据源）
     let allTools: [AppTool] = [
-        AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard),
-        AppTool(id: "ip", name: "IP 地址查询", icon: "network", color: .cyan, type: .ipLookup),
-        AppTool(id: "http", name: "HTTP 请求", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest),
+        // 日常工具
+        AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard, description: "查看和管理剪贴板历史记录", category: .daily),
+        AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator, description: "一个简单实用的计算器", category: .daily),
+        AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager, description: "安全地存储您的账户和密码", category: .daily),
+        AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator, description: "多语言文本翻译", category: .daily),
+        AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator, description: "快速生成通用唯一识别码", category: .daily),
+        AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools, description: "处理图片的工具集", category: .daily),
+//        AppTool(id: "pdfExtractor", name: "PDF 数据解析", icon: "doc.text.magnifyingglass", color: .orange, type: .pdfExtractor, description: "从PDF提取文本并导出为CSV", category: .daily),
         // AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
-        AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor),
-        AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json),
-        AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator),
-        AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager),
-        AppTool(id: "waveform.path.ecg", name: "摩斯电码本", icon: "waveform.path.ecg", color: .green, type: .morse),
-        AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator),
-        AppTool(id: "hosts", name: "Hosts 编辑器", icon: "pencil.and.ruler.fill", color: .green, type: .hosts),
-        AppTool(id: "portscan", name: "端口扫描", icon: "shippingbox.and.arrow.backward.fill", color: .indigo, type: .portScanner),
-        AppTool(id: "regex", name: "正则表达式", icon: "text.magnifyingglass", color: .orange, type: .regexTester),
-        AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator),
-        AppTool(id: "jwt", name: "JWT 解码器", icon: "key.viewfinder", color: .red, type: .jwtDebugger),
-        AppTool(id: "cron", name: "Cron 解析器", icon: "timer.square", color: .cyan, type: .cronParser),
-        AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator),
-        AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools)
+        // 开发工具
+        AppTool(id: "ip", name: "IP 地址查询", icon: "network", color: .cyan, type: .ipLookup, description: "查询公网或指定IP的地理信息", category: .development),
+        AppTool(id: "http", name: "HTTP 请求", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest, description: "发送HTTP请求以调试API接口", category: .development),
+        AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor, description: "Base64, URL, 时间戳, 哈希计算", category: .development),
+        AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json, description: "格式化、压缩和转义JSON字符串", category: .development),
+        AppTool(id: "chmod", name: "Chmod 计算器", icon: "slider.horizontal.3", color: .cyan, type: .chmod, description: "计算Linux/Unix文件权限代码", category: .development),
+        AppTool(id: "hosts", name: "Hosts 编辑器", icon: "pencil.and.ruler.fill", color: .green, type: .hosts, description: "快速编辑本地Hosts文件", category: .development),
+        AppTool(id: "urlParser", name: "URL 解析器", icon: "link.circle.fill", color: .purple, type: .urlParser, description: "将URL分解为协议、路径等部分", category: .development),
+        AppTool(id: "portscan", name: "端口扫描", icon: "shippingbox.and.arrow.backward.fill", color: .indigo, type: .portScanner, description: "扫描指定主机的常见端口", category: .development),
+        AppTool(id: "regex", name: "正则表达式", icon: "text.magnifyingglass", color: .orange, type: .regexTester, description: "在线测试和调试正则表达式", category: .development),
+        AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator, description: "为Apple平台生成应用图标集", category: .development),
+        AppTool(id: "jwt", name: "JWT 解码器", icon: "key.viewfinder", color: .red, type: .jwtDebugger, description: "解码和验证JWT (JSON Web Token)", category: .development),
+        AppTool(id: "cron", name: "Cron 解析器", icon: "timer.square", color: .cyan, type: .cronParser, description: "解析Cron表达式的执行时间", category: .development),
+        
+        // 趣味工具
+        AppTool(id: "waveform.path.ecg", name: "摩斯电码", icon: "waveform.path.ecg", color: .green, type: .morse, description: "文本与摩斯电码互转和播放", category: .fun)
     ]
     
     // 根据类型获取工具
@@ -80,98 +102,106 @@ class ToolsManager {
     }
     
     func openToolWindow(_ type: AppTool.ToolType, viewModel: CatViewModel? = nil) {
-        print("🚀 ToolsManager.openToolWindow 被调用")
-        
-        let view: AnyView
-        let size: NSSize
-        
-        switch type {
-        case .clipboard:
-            let clipboardView = ClipboardHistoryView()
-                .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
-            view = AnyView(clipboardView)
-            size = NSSize(width: 420, height: 560)
-        case .ipLookup:
-            view = AnyView(IPLookupView())
-            size = NSSize(width: 420, height: 560)
-        case .httpRequest:
-            view = AnyView(HTTPRequestView())
-            size = NSSize(width: 420, height: 560)
-        case .dataProcessor:
-            view = AnyView(DataProcessorView())
-            size = NSSize(width: 420, height: 560)
-        case .json:
-            view = AnyView(JSONFormatterView())
-            size = NSSize(width: 420, height: 560)
-        case .hosts:
-            view = AnyView(HostsView())
-            size = NSSize(width: 500, height: 600)
-        case .ocr:
-            view = AnyView(ScreenshotToolView())
-            size = NSSize(width: 420, height: 560)
-        case .calculator:
-            view = AnyView(CalculatorView())
-            size = NSSize(width: 420, height: 560)
-        case .uuidGenerator:
-            view = AnyView(UUIDGeneratorView())
-            size = NSSize(width: 420, height: 560)
-        case .portScanner:
-            view = AnyView(PortScannerView())
-            size = NSSize(width: 420, height: 560)
-        case .cronParser:
-            view = AnyView(CronView())
-            size = NSSize(width: 450, height: 550)
-        case .regexTester:
-            view = AnyView(RegexView())
-            size = NSSize(width: 800, height: 600)
-        case .translator:
-            view = AnyView(GuideView())
-            size = NSSize(width: 420, height: 560)
-        case .passwordManager:
-            let passwordView = PasswordManagerView()
-                .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
-            view = AnyView(passwordView)
-            size = NSSize(width: 420, height: 560)
-        case .morse:
-            view = AnyView(MorseCodeToolView())
-            size = NSSize(width: 420, height: 560)
-        case .imageTools:
-            view = AnyView(ImageToolsView())
-            size = NSSize(width: 420, height: 560)
-        case .iconGenerator:
-            view = AnyView(IconGeneratorView())
-            size = NSSize(width: 420, height: 760)
-        case .jwtDebugger:
-            view = AnyView(JWTView())
-            size = NSSize(width: 800, height: 500)
-        }
-        let hostingController = NSHostingController(rootView: view)
-        let window = NSWindow(contentViewController: hostingController)
-        
-        window.title = ""
-        window.titlebarAppearsTransparent = true
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.setContentSize(size)
-        window.center()
-        window.level = .floating
-        window.makeKeyAndOrderFront(nil)
-        
-        NSApp.activate(ignoringOtherApps: true)
-        
-        // ⭐ 新增: 触发工具奖励
-        if let vm = viewModel {
-            print("✅ viewModel 存在，触发奖励")
-            DispatchQueue.main.async {
-                vm.rewardForToolUsage()
+            print("🚀 ToolsManager.openToolWindow 被调用 for \(type.rawValue)")
+            
+            let view: AnyView
+            let size: NSSize
+            
+            switch type {
+            case .clipboard:
+                let clipboardView = ClipboardHistoryView()
+                    .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+                view = AnyView(clipboardView)
+                size = NSSize(width: 420, height: 560)
+            case .ipLookup:
+                view = AnyView(IPLookupView())
+                size = NSSize(width: 420, height: 560)
+            case .httpRequest:
+                view = AnyView(HTTPRequestView())
+                size = NSSize(width: 900, height: 650) // Note: HTTPRequestView has a larger size
+            case .dataProcessor:
+                view = AnyView(DataProcessorView())
+                size = NSSize(width: 420, height: 560)
+            case .json:
+                view = AnyView(JSONFormatterView())
+                size = NSSize(width: 420, height: 560)
+            case .calculator:
+                view = AnyView(CalculatorView())
+                size = NSSize(width: 420, height: 560)
+            case .pdfExtractor:
+                view = AnyView(PDFExtractorView())
+                size = NSSize(width: 600, height: 650)
+            case .translator:
+                view = AnyView(GuideView()) // Placeholder
+                size = NSSize(width: 420, height: 560)
+            case .ocr:
+                view = AnyView(ScreenshotToolView())
+                size = NSSize(width: 420, height: 560)
+            case .passwordManager:
+                let passwordView = PasswordManagerView()
+                    .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+                view = AnyView(passwordView)
+                size = NSSize(width: 700, height: 560) // Note: PasswordManagerView has a larger size
+            case .morse:
+                view = AnyView(MorseCodeToolView())
+                size = NSSize(width: 420, height: 560)
+            case .imageTools:
+                view = AnyView(ImageToolsView()) // Placeholder
+                size = NSSize(width: 420, height: 560)
+            case .iconGenerator:
+                view = AnyView(IconGeneratorView()) // Placeholder
+                size = NSSize(width: 420, height: 760)
+            case .chmod:
+                view = AnyView(ChmodCalculatorView())
+                size = NSSize(width: 420, height: 560)
+            case .jwtDebugger:
+                view = AnyView(JWTView()) // Placeholder
+                size = NSSize(width: 800, height: 500)
+            case .cronParser:
+                view = AnyView(CronView()) // Placeholder
+                size = NSSize(width: 450, height: 550)
+            case .regexTester:
+                view = AnyView(RegexView()) // Placeholder
+                size = NSSize(width: 800, height: 600)
+            case .uuidGenerator:
+                view = AnyView(UUIDGeneratorView()) // Placeholder
+                size = NSSize(width: 420, height: 560)
+            case .portScanner:
+                view = AnyView(PortScannerView()) // Placeholder
+                size = NSSize(width: 420, height: 560)
+            case .hosts:
+                view = AnyView(HostsView()) // Placeholder
+                size = NSSize(width: 500, height: 600)
+            case .urlParser:
+                view = AnyView(URLParserView())
+                size = NSSize(width: 420, height: 560)
             }
-        } else {
-            print("⚠️ viewModel 为 nil，无法触发奖励")
+            
+            let hostingController = NSHostingController(rootView: view)
+            let window = NSWindow(contentViewController: hostingController)
+            
+            window.title = ""
+            window.titlebarAppearsTransparent = true
+            window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.setContentSize(size)
+            window.center()
+            window.level = .floating
+            window.makeKeyAndOrderFront(nil)
+            
+            NSApp.activate(ignoringOtherApps: true)
+            
+            if let vm = viewModel {
+                print("✅ viewModel 存在，触发奖励")
+                DispatchQueue.main.async {
+                    vm.rewardForToolUsage()
+                }
+            } else {
+                print("⚠️ viewModel 为 nil，无法触发奖励")
+            }
         }
-    }
 }
-
 // MARK: - 固定工具管理器
 class PinnedToolsManager {
     static let shared = PinnedToolsManager()
@@ -540,6 +570,6 @@ struct ToolManageCard: View {
 
 #Preview {
     ManageToolsView(pinnedTools: .constant([
-        AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard)
+        AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard, description: "记录你的剪贴板历史", category: .daily)
     ]))
 }

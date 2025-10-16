@@ -1,3 +1,11 @@
+//
+//  URLParts.swift
+//  Conven
+//
+//  Created by 土豆星球 on 2025/10/15.
+//
+
+
 import Foundation
 
 struct URLParts {

@@ -24,12 +24,12 @@ struct CatMenuView: View {
                 // 头部信息
                 headerSection
                 
-//                LottieView(animationName: "Cat playing animation")
-//                    .frame(width: 180, height: 120)   // 控制整体显示区域
-//                    .scaleEffect(0.2)                 // 稍微缩小动画本体
-//                    .offset(x: 0)                   // 轻微上移居中
-//                    .offset(y: -1)
-//                    .allowsHitTesting(false)
+                LottieView(animationName: "Cat playing animation")
+                    .frame(width: 180, height: 120)   // 控制整体显示区域
+                    .scaleEffect(0.2)                 // 稍微缩小动画本体
+                    .offset(x: 0)                   // 轻微上移居中
+                    .offset(y: -1)
+                    .allowsHitTesting(false)
                 
                 Divider()
                     .padding(.horizontal, 16)
@@ -137,31 +137,8 @@ struct CatMenuView: View {
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                
-                HStack(spacing: 8) {
-                    //小喵
-                    Text(viewModel.catName)
-                        .font(.system(size: 16, weight: .semibold))
-                    HStack(spacing: 2) {
-                        //金币
-                        if viewModel.isAlive {
-                            Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundColor(.yellow)
-                            
-                            Text("\(Int(viewModel.coinBalance))/\(viewModel.maxCoinBalance)")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1) // 确保单行显示
-                            
-                            Text(String(format: "+%.2f/s", viewModel.coinGenerationRate))
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary.opacity(0.7))
-                        }
-                    }
-                    
-                }
-                
+                Text(viewModel.catName)
+                    .font(.system(size: 16, weight: .semibold))
                 
                 HStack(spacing: 6) {
                     Image(systemName: viewModel.isAlive ? "heart.fill" : "heart.slash.fill")
@@ -932,66 +909,114 @@ extension CatMenuView {
 struct ToolsMenuView: View {
     @Environment(\.dismiss) var dismiss
     let viewModel: CatViewModel
-    // 从统一的工具管理器获取所有工具
-    private var tools: [AppTool] {
-        ToolsManager.shared.allTools
+    @State private var searchText = ""
+    @State private var selectedCategory: ToolCategory = .daily
+    
+    private var filteredTools: [AppTool] {
+        let allTools = ToolsManager.shared.allTools
+        if searchText.isEmpty {
+            return allTools
+        } else {
+            return allTools.filter {
+                $0.name.localizedCaseInsensitiveContains(searchText) ||
+                $0.description.localizedCaseInsensitiveContains(searchText)
+            }
+        }
     }
     
     var body: some View {
-        ZStack {
-            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                .opacity(1)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // 标题栏
-                HStack {
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.blue.gradient)
-                    
-                    Text("工具箱")
-                        .font(.system(size: 16, weight: .semibold))
-                    
-                    Spacer()
-                    
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .pointingHandCursor()
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
+            ZStack {
+                VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                    .opacity(1)
+                    .ignoresSafeArea()
                 
-                Divider()
-                
-                ScrollView {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 12) {
-                        ForEach(tools) { tool in
-                            ToolCard(
-                                icon: tool.icon,
-                                name: tool.name,
-                                color: tool.color
-                            ) {
-                                // 使用统一的工具管理器打开窗口
-                                ToolsManager.shared.openToolWindow(tool.type, viewModel: viewModel)
-                            }
+                VStack(spacing: 0) {
+                    // 标题栏和搜索栏
+                    headerView
+                    
+                    // 使用 Picker 替代 TabView 以实现系统风格的选项卡
+                    Picker("选择分类", selection: $selectedCategory) {
+                        ForEach(ToolCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue).tag(category)
                         }
                     }
-                    .padding(20)
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    
+                    // 根据选择的分类显示工具网格
+                    toolGridView(for: selectedCategory)
                 }
             }
+            .frame(width: 500, height: 620)
+            .focusable(false)
         }
-        .frame(width: 380, height: 450)
-        .focusable(false)
+    
+    private var headerView: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.blue.gradient)
+                
+                Text("工具箱")
+                    .font(.system(size: 16, weight: .semibold))
+                
+                Spacer()
+                
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+            }
+            
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("搜索工具名称或描述...", text: $searchText)
+                    .textFieldStyle(.plain)
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.1))
+            .cornerRadius(8)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+    }
+    
+    private func toolGridView(for category: ToolCategory) -> some View {
+        let tools = filteredTools.filter { $0.category == category }
+        
+        return ScrollView {
+            if tools.isEmpty {
+                Text("没有找到匹配的工具")
+                    .foregroundColor(.secondary)
+                    .padding(.top, 50)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
+                    ForEach(tools) { tool in
+                        ToolCard(tool: tool) {
+                            ToolsManager.shared.openToolWindow(tool.type, viewModel: viewModel)
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
     }
 }
+
 
 // 临时的使用指南视图
 struct GuideView: View {
@@ -1019,48 +1044,47 @@ struct GuideView: View {
 
 // MARK: - 工具卡片组件
 struct ToolCard: View {
-    let icon: String
-    let name: String
-    let color: Color
+    let tool: AppTool
     let action: () -> Void
     
     @State private var isHovered = false
     
-    init(icon: String, name: String, color: Color, action: @escaping () -> Void) {
-        self.icon = icon
-        self.name = name
-        self.color = color
-        self.action = action
-    }
-    
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.2))
-                        .frame(width: 56, height: 56)
+                        .fill(tool.color.opacity(0.2))
+                        .frame(width: 48, height: 48) // 缩小图标背景
                     
-                    Image(systemName: icon)
-                        .font(.system(size: 24))
-                        .foregroundStyle(color.gradient)
+                    Image(systemName: tool.icon)
+                        .font(.system(size: 20)) // 缩小图标
+                        .foregroundStyle(tool.color.gradient)
                 }
                 
-                Text(name)
-                    .font(.system(size: 12, weight: .medium))
+                Text(tool.name)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.primary)
+                
+                Text(tool.description)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(height: 28) // 固定简介高度
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 120)
+            .padding(10)
+            .frame(height: 130)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(isHovered ? Color.white.opacity(0.15) : Color.white.opacity(0.08))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isHovered ? color.opacity(0.3) : Color.clear, lineWidth: 1)
+                    .stroke(isHovered ? tool.color.opacity(0.4) : Color.clear, lineWidth: 1.5)
             )
-            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .scaleEffect(isHovered ? 1.03 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         }
         .buttonStyle(.plain)
@@ -1070,6 +1094,7 @@ struct ToolCard: View {
         .pointingHandCursor()
     }
 }
+
 
 #Preview {
     CatMenuView(viewModel: CatViewModel())

@@ -1,4 +1,14 @@
+//
+//  PDFExtractorView.swift
+//  Conven
+//
+//  Created by 土豆星球 on 2025/10/15.
+//
+
+
 import SwiftUI
+import Combine
+internal import UniformTypeIdentifiers
 
 // MARK: - PDFExtractorView
 struct PDFExtractorView: View {
@@ -151,7 +161,6 @@ struct PDFExtractorView: View {
 }
 
 
-// MARK: - ViewModel for PDFExtractor
 @MainActor
 class PDFExtractorViewModel: ObservableObject {
     @Published var fileURLs: [URL] = []
@@ -165,7 +174,6 @@ class PDFExtractorViewModel: ObservableObject {
     func handleFileImport(result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
-            // 避免重复添加
             for url in urls {
                 if !fileURLs.contains(url) {
                     fileURLs.append(url)
@@ -188,30 +196,35 @@ class PDFExtractorViewModel: ObservableObject {
         guard !fileURLs.isEmpty else { return }
         
         isProcessing = true
-        progress = 0.0
-        progressText = "准备开始"
+        progress = 0.2 // Start with some progress
+        progressText = "正在提取PDF文本..."
         
-        let results = await logic.processPDFs(urls: fileURLs)
+        // 直接获取结构化数据
+        let invoices = await logic.processPDFs(urls: fileURLs)
         
-        progressText = "转换数据为CSV"
-        let csvString = logic.convertToCSV(results: results)
+        progress = 0.8
+        progressText = "正在生成CSV文件..."
+        
+        // 将结构化数据转换为CSV
+        let csvString = logic.convertToCSV(invoices: invoices)
+        
         progress = 1.0
         
         // 保存文件
         saveCSV(csvString)
         
         isProcessing = false
-        fileURLs.removeAll() // 处理完成后清空列表
+        fileURLs.removeAll()
     }
     
     private func saveCSV(_ content: String) {
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.commaSeparatedText]
-        savePanel.nameFieldStringValue = "Exported_PDF_Data_\(Date().timeIntervalSince1970).csv"
+        savePanel.nameFieldStringValue = "发票数据_\(Date().formatted(date: .numeric, time: .omitted)).csv"
         
         if savePanel.runModal() == .OK, let url = savePanel.url {
             do {
-                // 添加BOM头以确保Excel正确识别UTF-8编码
+                // 添加BOM头，确保Excel能正确打开UTF-8编码的中文文件
                 let bom = "\u{FEFF}"
                 try (bom + content).write(to: url, atomically: true, encoding: .utf8)
             } catch {
