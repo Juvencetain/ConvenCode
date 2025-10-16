@@ -22,7 +22,7 @@ struct AppTool: Identifiable, Codable, Equatable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
              regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker,antiSleep,
-             networkSpeedTest,scratchpad
+             networkSpeedTest,scratchpad,dateCalculator
     }
     
     // Codable 支持 Color
@@ -72,6 +72,7 @@ class ToolsManager {
     let allTools: [AppTool] = [
         // 日常工具
         AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard, description: "查看和管理剪贴板历史记录", category: .daily),
+        AppTool(id: "dateCalculator", name: "日期计算器", icon: "calendar.badge.clock", color: .cyan, type: .dateCalculator, description: "计算日期差异或增减天数", category: .daily),
         AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator, description: "一个简单实用的计算器", category: .daily),
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager, description: "安全地存储您的账户和密码", category: .daily),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator, description: "多语言文本翻译", category: .daily),
@@ -131,6 +132,9 @@ class ToolsManager {
             case .json:
                 view = AnyView(JSONFormatterView())
                 size = NSSize(width: 420, height: 560)
+            case .dateCalculator:
+                view = AnyView(DateCalculatorView())
+                size = NSSize(width: 420, height: 500)
             case .antiSleep:
                 view = AnyView(AntiSleepView())
                 size = NSSize(width: 420, height: 560)
