@@ -322,6 +322,23 @@ class HTTPRequestViewModel: ObservableObject {
         showSuccessToast = true
     }
     
+    func formatJSON() {
+        guard !body.isEmpty else { return }
+        
+        // 尝试格式化 JSON
+        if let data = body.data(using: .utf8),
+           let jsonObject = try? JSONSerialization.jsonObject(with: data),
+           let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted, .sortedKeys]),
+           let prettyString = String(data: prettyData, encoding: .utf8) {
+            body = prettyString
+            toastMessage = "JSON 已格式化"
+            showSuccessToast = true
+        } else {
+            toastMessage = "JSON 格式错误"
+            showSuccessToast = true
+        }
+    }
+    
     func clear() {
         baseURL = ""
         params = []
@@ -672,6 +689,25 @@ struct HTTPRequestView: View {
                 
                 Spacer()
                 
+                // 添加格式化按钮
+                Button(action: {
+                    viewModel.formatJSON()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 10))
+                        Text("格式化")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.12))
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .httpCursor()
+                
                 Text("JSON")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.orange)
@@ -692,7 +728,8 @@ struct HTTPRequestView: View {
     }
     
     private var actionButtons: some View {
-        HStack(spacing: 12) {
+        VStack(spacing: 12) {  // 改成垂直布局
+            // 发送按钮（保持原样，占满宽度）
             Button(action: viewModel.sendRequest) {
                 HStack(spacing: 8) {
                     Image(systemName: "paperplane.fill")
@@ -711,32 +748,41 @@ struct HTTPRequestView: View {
             .keyboardShortcut(.return, modifiers: .command)
             .httpCursor()
             
-            Button(action: { viewModel.showSaveDialog = true }) {
-                Image(systemName: "square.and.arrow.down.fill")
-                    .font(.system(size: 14))
+            // 保存和清空按钮（横向排列）
+            HStack(spacing: 12) {
+                Button(action: { viewModel.showSaveDialog = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.down.fill")
+                            .font(.system(size: 13))
+                        Text("保存")
+                            .font(.system(size: 13, weight: .medium))
+                    }
                     .foregroundColor(.blue)
-                    .frame(width: 48)
-                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
                     .background(Color.blue.opacity(0.1))
                     .cornerRadius(10)
-            }
-            .buttonStyle(.plain)
-            .help("保存请求")
-            .httpCursor()
-            
-            Button(action: viewModel.clear) {
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+                .httpCursor()
+                
+                Button(action: viewModel.clear) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 13))
+                        Text("清空")
+                            .font(.system(size: 13, weight: .medium))
+                    }
                     .foregroundColor(.secondary)
-                    .frame(width: 48)
-                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
                     .background(Color.white.opacity(0.05))
                     .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("k", modifiers: .command)
+                .httpCursor()
             }
-            .buttonStyle(.plain)
-            .help("清空")
-            .keyboardShortcut("k", modifiers: .command)
-            .httpCursor()
         }
     }
     

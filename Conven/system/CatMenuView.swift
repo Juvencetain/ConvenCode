@@ -23,29 +23,17 @@ struct CatMenuView: View {
             VStack(spacing: 0) {
                 // 头部信息
                 headerSection
-                
-                LottieView(animationName: "Cat playing animation")
-                    .frame(width: 180, height: 120)   // 控制整体显示区域
-                    .scaleEffect(0.2)                 // 稍微缩小动画本体
-                    .offset(x: 0)                   // 轻微上移居中
-                    .offset(y: -1)
-                    .allowsHitTesting(false)
-                
-                Divider()
-                    .padding(.horizontal, 16)
-                
-                // 状态区域
-                if viewModel.isAlive {
-                    statsSection
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                } else {
-                    deathSection
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            
+                // 添加版本检测的动画视图
+                if #available(macOS 15, *) {
+                    LottieView(animationName: "Cat playing animation")
+                        .frame(width: 180, height: 120)
+                        .scaleEffect(0.2)
+                        .offset(x: 0)
+                        .offset(y: -1)
+                        .allowsHitTesting(false)
                 }
-                
-                Divider()
-                    .padding(.horizontal, 16)
-                
+            
                 // 操作按钮区域
                 if viewModel.isAlive {
                     actionsSection
@@ -1115,7 +1103,6 @@ struct ToolCard: View {
         .pointingHandCursor()
     }
 }
-
 
 #Preview {
     CatMenuView(viewModel: CatViewModel())
