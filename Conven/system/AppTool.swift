@@ -21,7 +21,7 @@ struct AppTool: Identifiable, Codable, Equatable {
     enum ToolType: String, Codable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
-             regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor
+             regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker
     }
     
     // Codable 支持 Color
@@ -76,11 +76,12 @@ class ToolsManager {
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator, description: "多语言文本翻译", category: .daily),
         AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator, description: "快速生成通用唯一识别码", category: .daily),
         AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools, description: "处理图片的工具集", category: .daily),
-//        AppTool(id: "pdfExtractor", name: "PDF 数据解析", icon: "doc.text.magnifyingglass", color: .orange, type: .pdfExtractor, description: "从PDF提取文本并导出为CSV", category: .daily),
+        // AppTool(id: "pdfExtractor", name: "PDF 数据解析", icon: "doc.text.magnifyingglass", color: .orange, type: .pdfExtractor, description: "从PDF提取文本并导出为CSV", category: .daily),
         // AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
         // 开发工具
         AppTool(id: "ip", name: "IP 地址查询", icon: "network", color: .cyan, type: .ipLookup, description: "查询公网或指定IP的地理信息", category: .development),
         AppTool(id: "http", name: "HTTP 请求", icon: "arrow.left.arrow.right.circle", color: .indigo, type: .httpRequest, description: "发送HTTP请求以调试API接口", category: .development),
+        AppTool(id: "color", name: "颜色选择器", icon: "eyedropper.halffull", color: .purple, type: .colorPicker,description: "从屏幕任何位置拾取颜色，并在 HEX, RGB, HSL 等格式间相互转换。", category: .development),
         AppTool(id: "data", name: "数据处理", icon: "wrench.and.screwdriver.fill", color: .green, type: .dataProcessor, description: "Base64, URL, 时间戳, 哈希计算", category: .development),
         AppTool(id: "json", name: "JSON 工具", icon: "curlybraces.square.fill", color: .orange, type: .json, description: "格式化、压缩和转义JSON字符串", category: .development),
         AppTool(id: "chmod", name: "Chmod 计算器", icon: "slider.horizontal.3", color: .cyan, type: .chmod, description: "计算Linux/Unix文件权限代码", category: .development),
@@ -136,6 +137,9 @@ class ToolsManager {
                 size = NSSize(width: 420, height: 560)
             case .ocr:
                 view = AnyView(ScreenshotToolView())
+                size = NSSize(width: 420, height: 560)
+            case .colorPicker:
+                view = AnyView(ColorPickerView())
                 size = NSSize(width: 420, height: 560)
             case .passwordManager:
                 let passwordView = PasswordManagerView()
