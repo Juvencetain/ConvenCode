@@ -24,12 +24,12 @@ struct CatMenuView: View {
                 // 头部信息
                 headerSection
                 
-                LottieView(animationName: "Cat playing animation")
-                    .frame(width: 180, height: 120)   // 控制整体显示区域
-                    .scaleEffect(0.2)                 // 稍微缩小动画本体
-                    .offset(x: 0)                   // 轻微上移居中
-                    .offset(y: -1)
-                    .allowsHitTesting(false)
+//                LottieView(animationName: "Cat playing animation")
+//                    .frame(width: 180, height: 120)   // 控制整体显示区域
+//                    .scaleEffect(0.2)                 // 稍微缩小动画本体
+//                    .offset(x: 0)                   // 轻微上移居中
+//                    .offset(y: -1)
+//                    .allowsHitTesting(false)
                 
                 Divider()
                     .padding(.horizontal, 16)
