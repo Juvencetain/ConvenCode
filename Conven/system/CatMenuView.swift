@@ -56,13 +56,6 @@ struct CatMenuView: View {
                     restartSection
                 }
                 
-                // 操作按钮区域
-                if viewModel.isAlive {
-                    actionsSection
-                } else {
-                    restartSection
-                }
-                
                 // 固定工具栏（在操作按钮后面）
                 if viewModel.isAlive && !pinnedTools.isEmpty {
                     Divider()
