@@ -34,6 +34,28 @@ struct CatMenuView: View {
                         .allowsHitTesting(false)
                 }
             
+                Divider()
+                    .padding(.horizontal, 16)
+
+                // 状态区域
+                if viewModel.isAlive {
+                    statsSection
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                } else {
+                    deathSection
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+
+                Divider()
+                    .padding(.horizontal, 16)
+
+                // 操作按钮区域
+                if viewModel.isAlive {
+                    actionsSection
+                } else {
+                    restartSection
+                }
+                
                 // 操作按钮区域
                 if viewModel.isAlive {
                     actionsSection
