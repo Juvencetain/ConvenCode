@@ -1,11 +1,187 @@
 import SwiftUI
 import AppKit
+import Combine
+
+// MARK: - 致谢数据模型
+fileprivate struct AcknowledgedPerson: Identifiable, Equatable {
+    let id = UUID()
+    let name: String
+    let contribution: String
+    let icon: String
+    let color: Color
+}
+
+// MARK: - 致谢 ViewModel
+fileprivate class AcknowledgeViewModel: ObservableObject {
+    @Published var acknowledgePeople: [AcknowledgedPerson] = []
+    
+    init() {
+        self.acknowledgePeople = [
+            AcknowledgedPerson(
+                name: "sudo",
+                contribution: "开发者",
+                icon: "terminal.fill",
+                color: .black
+            ),
+            AcknowledgedPerson(
+                name: "@啦啦啦@",
+                contribution: "开发者",
+                icon: "music.note.list",
+                color: .purple
+            ),
+            AcknowledgedPerson(
+                name: "小张牛宝",
+                contribution: "开发者",
+                icon: "lightbulb.fill",
+                color: .yellow
+            ),
+            AcknowledgedPerson(
+                name: "明天会更好",
+                contribution: "参与应用共建",
+                icon: "sun.max.fill",
+                color: .orange
+            ),
+            AcknowledgedPerson(
+                name: "茂子哥",
+                contribution: "参与应用共建",
+                icon: "figure.strengthtraining.traditional",
+                color: .blue
+            ),
+            AcknowledgedPerson(
+                name: "小敏子",
+                contribution: "参与应用共建",
+                icon: "sparkles",
+                color: .pink
+            ),
+            AcknowledgedPerson(
+                name: "小姓吴",
+                contribution: "参与应用共建",
+                icon: "book.fill",
+                color: .cyan
+            ),
+            AcknowledgedPerson(
+                name: "吴优无虑",
+                contribution: "参与应用共建",
+                icon: "cloud.sun.fill",
+                color: .teal
+            ),
+            AcknowledgedPerson(
+                name: "L",
+                contribution: "参与应用共建",
+                icon: "bolt.fill",
+                color: .indigo
+            ),
+            AcknowledgedPerson(
+                name: "惠达卫浴",
+                contribution: "参与应用共建",
+                icon: "drop.fill",
+                color: .mint
+            ),
+            AcknowledgedPerson(
+                name: "jnwu",
+                contribution: "参与应用共建",
+                icon: "gearshape.fill",
+                color: .blue
+            ),
+            AcknowledgedPerson(
+                name: "黑博",
+                contribution: "参与应用共建",
+                icon: "globe",
+                color: .gray
+            ),
+            AcknowledgedPerson(
+                name: "mc伟",
+                contribution: "参与应用共建",
+                icon: "cube.fill",
+                color: .red
+            ),
+            AcknowledgedPerson(
+                name: "开飞机舒克",
+                contribution: "参与应用共建",
+                icon: "airplane",
+                color: .blue
+            ),
+            AcknowledgedPerson(
+                name: "LYC",
+                contribution: "参与应用共建",
+                icon: "bubble.left.and.text.bubble.right.fill",
+                color: .green
+            ),
+            AcknowledgedPerson(
+                name: "水哥",
+                contribution: "参与应用共建",
+                icon: "drop.circle.fill",
+                color: .cyan
+            ),
+            AcknowledgedPerson(
+                name: "躺赢选手",
+                contribution: "参与应用共建",
+                icon: "bed.double.fill",
+                color: .purple
+            ),
+            AcknowledgedPerson(
+                name: "ocket Sun",
+                contribution: "参与应用共建",
+                icon: "flame.fill",
+                color: .orange
+            ),
+            AcknowledgedPerson(
+                name: "跑调Joy",
+                contribution: "参与应用共建",
+                icon: "waveform.path.ecg",
+                color: .pink
+            ),
+            AcknowledgedPerson(
+                name: "汽水气泡Soda",
+                contribution: "参与应用共建",
+                icon: "sparkle.magnifyingglass",
+                color: .mint
+            ),
+            AcknowledgedPerson(
+                name: "澄",
+                contribution: "参与应用共建",
+                icon: "circle.lefthalf.filled",
+                color: .blue
+            ),
+            AcknowledgedPerson(
+                name: "韭菜本菜",
+                contribution: "参与应用共建",
+                icon: "leaf.fill",
+                color: .green
+            ),
+            AcknowledgedPerson(
+                name: "夜航船",
+                contribution: "参与应用共建",
+                icon: "moon.stars.fill",
+                color: .indigo
+            ),
+            AcknowledgedPerson(
+                name: "24帧生活",
+                contribution: "参与应用共建",
+                icon: "film.fill",
+                color: .yellow
+            )
+        ]
+    }
+}
 
 // MARK: - 关于视图
 struct AboutView: View {
     @Environment(\.dismiss) var dismiss
     @State private var qrCodeImage: NSImage?
     @State private var showCopiedToast = false
+    @StateObject private var acknowledgeViewModel = AcknowledgeViewModel()
+    
+    @State private var itemsPerPage: Int = 4
+    @State private var currentPageIndex: Int = 0
+    @State private var dragOffset: CGFloat = .zero
+    
+    // --- BUG FIX ---
+    // State to track hover over the carousel to pause auto-scrolling
+    @State private var isHoveringAcknowledge = false
+    // A reference to the timer to allow invalidation
+    @State private var autoScrollTimer: Timer?
+    // --- END BUG FIX ---
     
     private let email = "424261131@qq.com（交流群：1065476363）"
     private let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -17,30 +193,21 @@ struct AboutView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 标题栏
                 headerSection
-                
                 Divider()
                 
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
-                        // Logo 区域
                         logoSection
-                        
-                        // 简介区域
                         introSection
-                        
-                        // 联系方式区域
                         contactSection
-                        
-                        // 打赏区域
                         donationSection
+                        acknowledgeSection
                     }
                     .padding(24)
                 }
             }
             
-            // 复制成功提示
             if showCopiedToast {
                 VStack {
                     Spacer()
@@ -62,10 +229,15 @@ struct AboutView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(minWidth: 400, idealWidth: 450, maxWidth: 500, minHeight: 500, idealHeight: 580, maxHeight: 700)
+        .frame(minWidth: 400, idealWidth: 450, maxWidth: 500, minHeight: 500, idealHeight: 600, maxHeight: 700)
         .focusable(false)
         .onAppear {
             loadQRCode()
+            setupAutoScroll() // Use the new timer setup method
+        }
+        .onDisappear {
+            // Invalidate the timer when the view disappears to prevent memory leaks
+            autoScrollTimer?.invalidate()
         }
     }
     
@@ -87,7 +259,7 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .pointingHandCursor()
+            .aboutCursor()
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
@@ -98,7 +270,13 @@ struct AboutView: View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(Color.blue.opacity(0.15))
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue.opacity(0.3), .purple.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .frame(width: 80, height: 80)
                 
                 Text("🐱")
@@ -127,7 +305,7 @@ struct AboutView: View {
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.1))
+                        .fill(Color.white.opacity(0.05))
                 )
             
             HStack(spacing: 16) {
@@ -161,7 +339,7 @@ struct AboutView: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.1))
+                    .fill(Color.white.opacity(0.05))
             )
         }
     }
@@ -178,7 +356,6 @@ struct AboutView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                 
-                // 二维码区域
                 if let qrImage = qrCodeImage {
                     VStack(spacing: 8) {
                         Image(nsImage: qrImage)
@@ -196,7 +373,7 @@ struct AboutView: View {
                 } else {
                     VStack(spacing: 8) {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.1))
+                            .fill(Color.white.opacity(0.05))
                             .frame(width: 200, height: 200)
                             .overlay(
                                 VStack(spacing: 8) {
@@ -227,6 +404,118 @@ struct AboutView: View {
                     .fill(Color.white.opacity(0.05))
             )
         }
+    }
+
+    // MARK: - Acknowledge Section (macOS 兼容分页)
+    private var acknowledgeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle(icon: "sparkles", title: "特别致谢")
+            
+            let chunkedPeople = acknowledgeViewModel.acknowledgePeople.chunked(into: itemsPerPage)
+            let pageCount = chunkedPeople.count
+            
+            let rowCount = (itemsPerPage + 1) / 2
+            let cardHeight: CGFloat = 85
+            let totalHeight = (cardHeight * CGFloat(rowCount)) + (16 * CGFloat(rowCount - 1))
+
+            VStack(spacing: 0) {
+                GeometryReader { geometry in
+                    let pageWidth = geometry.size.width
+                    
+                    HStack(spacing: 0) {
+                        ForEach(Array(chunkedPeople.enumerated()), id: \.offset) { pageIndex, peopleOnPage in
+                            let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+                            
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(peopleOnPage) { person in
+                                    AcknowledgeCardView(person: person)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .frame(width: pageWidth)
+                        }
+                    }
+                    .offset(x: -CGFloat(currentPageIndex) * pageWidth + dragOffset)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                dragOffset = value.translation.width
+                            }
+                            .onEnded { value in
+                                let threshold = pageWidth / 5
+                                var newIndex = currentPageIndex
+                                
+                                if value.translation.width < -threshold {
+                                    newIndex = min(currentPageIndex + 1, pageCount - 1)
+                                } else if value.translation.width > threshold {
+                                    newIndex = max(currentPageIndex - 1, 0)
+                                }
+                                
+                                // --- 优化部分: 更灵敏的弹性动画 ---
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    dragOffset = .zero
+                                    currentPageIndex = newIndex
+                                }
+                            }
+                    )
+                }
+                .frame(height: totalHeight)
+                .clipped()
+                
+                if pageCount > 1 {
+                    HStack(spacing: 8) {
+                        ForEach(0..<pageCount, id: \.self) { index in
+                            Circle()
+                                .fill(currentPageIndex == index ? Color.blue : Color.gray.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                                .scaleEffect(currentPageIndex == index ? 1.2 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: currentPageIndex)
+                                .onTapGesture {
+                                    withAnimation(.spring()) {
+                                        currentPageIndex = index
+                                    }
+                                }
+                                .aboutCursor()
+                        }
+                    }
+                    .padding(.top, 16)
+                }
+            }
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.blue.opacity(0.1),
+                                Color.purple.opacity(0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.blue.opacity(0.3),
+                                Color.purple.opacity(0.2)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+        }
+        // --- BUG FIX ---
+        // Add onHover to the entire section to control the auto-scroll pause
+        .onHover { hovering in
+            isHoveringAcknowledge = hovering
+        }
+        // --- END BUG FIX ---
     }
     
     // MARK: - Helper Views
@@ -296,13 +585,31 @@ struct AboutView: View {
                 )
             }
             .buttonStyle(.plain)
-            .pointingHandCursor()
+            .aboutCursor()
         }
     }
     
     // MARK: - Helper Methods
+    private func setupAutoScroll() {
+        // Calculate the number of pages
+        let pageCount = (acknowledgeViewModel.acknowledgePeople.count + itemsPerPage - 1) / itemsPerPage
+        // Don't start the timer if there's only one page or less
+        guard pageCount > 1 else { return }
+        
+        // Create the timer that will advance the page
+        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            // --- BUG FIX ---
+            // Check if the mouse is hovering over the section. If so, do not advance the page.
+            guard !isHoveringAcknowledge else { return }
+            
+            // Animate to the next page, looping back to the start if at the end
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                currentPageIndex = (currentPageIndex + 1) % pageCount
+            }
+        }
+    }
+    
     private func loadQRCode() {
-        // 尝试从多个可能的位置加载二维码图片
         let possiblePaths = [
             Bundle.main.path(forResource: "qrcode", ofType: "jpg"),
             Bundle.main.path(forResource: "qrcode", ofType: "png"),
@@ -338,7 +645,84 @@ struct AboutView: View {
     }
 }
 
+// MARK: - 致谢卡片视图 (已优化)
+fileprivate struct AcknowledgeCardView: View {
+    let person: AcknowledgedPerson
+    @State private var isHovering = false // 用于鼠标悬停状态
+    
+    var body: some View {
+        VStack(spacing: 5) {
+            // 图标
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                person.color.opacity(0.3),
+                                person.color.opacity(0.1)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: person.icon)
+                    .font(.system(size: 18))
+                    .foregroundStyle(person.color.gradient)
+            }
+            
+            // 名称
+            Text(person.name)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.primary)
+            
+            // 贡献
+            Text(person.contribution)
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, minHeight: 80)
+        .padding(.vertical, 2)
+        // --- 优化部分: 悬停交互 ---
+        .scaleEffect(isHovering ? 1.08 : 1.0)
+        .shadow(color: .black.opacity(isHovering ? 0.2 : 0), radius: 8, y: 4)
+        .onHover { hovering in
+            // --- BUG FIX: 修复悬停频闪问题 ---
+            // 使用更平滑的 easeInOut 动画，以避免在快速切换悬停目标时，
+            // 复杂的 spring 动画（一个移出、一个移入）之间相互干扰导致视觉闪烁。
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+// MARK: - 辅助扩展
+extension View {
+    func aboutCursor() -> some View {
+        self.onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+}
+
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
+        }
+    }
+}
+
+
 // MARK: - Preview
 #Preview {
     AboutView()
 }
+
