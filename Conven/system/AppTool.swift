@@ -22,7 +22,7 @@ struct AppTool: Identifiable, Codable, Equatable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
              regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker,antiSleep,
-             networkSpeedTest,scratchpad,dateCalculator
+             networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock
     }
     
     // Codable 支持 Color
@@ -80,8 +80,10 @@ class ToolsManager {
         AppTool(id: "scratchpad", name: "临时便签", icon: "pencil.and.scribble", color: .yellow, type: .scratchpad,description: "用于临时记录想法或信息，关闭即毁",category: .daily),
         AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools, description: "处理图片的工具集", category: .daily),
         AppTool(id: "antiSleep",name: "防休眠",icon: "bolt.shield.fill",color: .green,type: .antiSleep,description: "防止 Mac 进入休眠或黑屏",category: .daily),
+        AppTool(id: "worldClock", name: "世界时间", icon: "globe.americas.fill", color: .indigo, type: .worldClock, description: "查看世界各地实时时间", category: .daily),
         AppTool(id: "speedTest",name: "网络测速",icon: "speedometer",color: .blue,type: .networkSpeedTest,description: "测试网络上传和下载速度",category: .daily
         ),
+        AppTool(id: "systemMonitor", name: "系统信息", icon: "gauge.high", color: .blue, type: .systemMonitor, description: "监控CPU、内存和网络状态", category: .daily),
         // AppTool(id: "pdfExtractor", name: "PDF 数据解析", icon: "doc.text.magnifyingglass", color: .orange, type: .pdfExtractor, description: "从PDF提取文本并导出为CSV", category: .daily),
         // AppTool(id: "ocr", name: "截图识字", icon: "doc.text.viewfinder", color: .teal, type: .ocr),
         // 开发工具
@@ -132,9 +134,15 @@ class ToolsManager {
             case .json:
                 view = AnyView(JSONFormatterView())
                 size = NSSize(width: 420, height: 560)
+            case .worldClock:
+                view = AnyView(WorldClockView())
+                size = NSSize(width: 480, height: 620)
             case .dateCalculator:
                 view = AnyView(DateCalculatorView())
                 size = NSSize(width: 420, height: 500)
+            case .systemMonitor:
+               view = AnyView(SystemMonitorView())
+               size = NSSize(width: 420, height: 620)
             case .antiSleep:
                 view = AnyView(AntiSleepView())
                 size = NSSize(width: 420, height: 560)
