@@ -22,7 +22,7 @@ struct AppTool: Identifiable, Codable, Equatable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
              regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker,antiSleep,
-             networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock
+             networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock,ballSortGame,matchGame
     }
     
     // Codable 支持 Color
@@ -79,6 +79,7 @@ class ToolsManager {
         AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator, description: "快速生成通用唯一识别码", category: .daily),
         AppTool(id: "scratchpad", name: "临时便签", icon: "pencil.and.scribble", color: .yellow, type: .scratchpad,description: "用于临时记录想法或信息，关闭即毁",category: .daily),
         AppTool(id: "imageTools", name: "图片工具", icon: "photo.on.rectangle.angled", color: .purple, type: .imageTools, description: "处理图片的工具集", category: .daily),
+        AppTool(id: "matchGame", name: "趣味消消乐", icon: "squares.below.rectangle", color: .blue, type: .matchGame, description: "经典的宝石消除游戏", category: .fun),
         AppTool(id: "antiSleep",name: "防休眠",icon: "bolt.shield.fill",color: .green,type: .antiSleep,description: "防止 Mac 进入休眠或黑屏",category: .daily),
         AppTool(id: "worldClock", name: "世界时间", icon: "globe.americas.fill", color: .indigo, type: .worldClock, description: "查看世界各地实时时间", category: .daily),
         AppTool(id: "speedTest",name: "网络测速",icon: "speedometer",color: .blue,type: .networkSpeedTest,description: "测试网络上传和下载速度",category: .daily
@@ -102,7 +103,8 @@ class ToolsManager {
         AppTool(id: "cron", name: "Cron 解析器", icon: "timer.square", color: .cyan, type: .cronParser, description: "解析Cron表达式的执行时间", category: .development),
         
         // 趣味工具
-        AppTool(id: "waveform.path.ecg", name: "摩斯电码", icon: "waveform.path.ecg", color: .green, type: .morse, description: "文本与摩斯电码互转和播放", category: .fun)
+        AppTool(id: "waveform.path.ecg", name: "摩斯电码", icon: "waveform.path.ecg", color: .green, type: .morse, description: "文本与摩斯电码互转和播放", category: .fun),
+        AppTool(id: "ballSort", name: "彩球排序", icon: "gamecontroller.fill", color: .purple, type: .ballSortGame, description: "一个令人上瘾的颜色排序小游戏", category: .fun) // [!code ++]
     ]
     
     // 根据类型获取工具
@@ -131,6 +133,9 @@ class ToolsManager {
             case .dataProcessor:
                 view = AnyView(DataProcessorView())
                 size = NSSize(width: 420, height: 560)
+            case .matchGame:
+                view = AnyView(MatchGameView())
+                size = NSSize(width: 420, height: 600)
             case .json:
                 view = AnyView(JSONFormatterView())
                 size = NSSize(width: 420, height: 560)
@@ -164,6 +169,9 @@ class ToolsManager {
             case .ocr:
                 view = AnyView(ScreenshotToolView())
                 size = NSSize(width: 420, height: 560)
+            case .ballSortGame: // [!code ++]
+                view = AnyView(BallSortView())
+                size = NSSize(width: 480, height: 600)
             case .colorPicker:
                 view = AnyView(ColorPickerView())
                 size = NSSize(width: 420, height: 560)
