@@ -48,7 +48,6 @@ struct TextProcessorView: View {
             
             Spacer()
             
-            // 窗口控制按钮
             if textProcessorSelectedTab == .diff {
                 Button(action: {
                     withAnimation(.spring(response: 0.3)) {
@@ -127,7 +126,170 @@ struct TextProcessorView: View {
         }
     }
 }
+// MARK: - Updated Diff View (Unified Style)
+struct TextProcessorDiffView: View {
+    @ObservedObject var viewModel: TextProcessorViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("文本差异对比")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                if viewModel.textProcessorDiffEnabled {
+                    HStack(spacing: 12) {
+                        HStack(spacing: 4) {
+                            RoundedRectangle(cornerRadius: 2).fill(Color.red.opacity(0.2)).frame(width: 12, height: 8)
+                            Text("删除行").font(.system(size: 10))
+                        }
+                        HStack(spacing: 4) {
+                            RoundedRectangle(cornerRadius: 2).fill(Color.green.opacity(0.2)).frame(width: 12, height: 8)
+                            Text("新增行").font(.system(size: 10))
+                        }
+                        HStack(spacing: 4) {
+                             Text(" ").padding(2).background(Color.red.opacity(0.4)).cornerRadius(2)
+                             Text("/").foregroundStyle(.secondary)
+                             Text(" ").padding(2).background(Color.green.opacity(0.4)).cornerRadius(2)
+                             Text("字符级差异").font(.system(size: 10))
+                        }
+                    }
+                    .foregroundColor(.secondary)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("原文本")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    
+                    ZStack(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                        
+                        TextEditor(text: $viewModel.textProcessorDiffText1)
+                            .font(.system(size: 11, design: .monospaced))
+                            .scrollContentBackground(.hidden)
+                            .background(Color.clear)
+                            .padding(8)
+                            .disabled(viewModel.textProcessorDiffEnabled)
+                            .opacity(viewModel.textProcessorDiffEnabled ? 0.6 : 1.0)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("对比文本")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    
+                    ZStack(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                        
+                        TextEditor(text: $viewModel.textProcessorDiffText2)
+                            .font(.system(size: 11, design: .monospaced))
+                            .scrollContentBackground(.hidden)
+                            .background(Color.clear)
+                            .padding(8)
+                            .disabled(viewModel.textProcessorDiffEnabled)
+                            .opacity(viewModel.textProcessorDiffEnabled ? 0.6 : 1.0)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(height: viewModel.textProcessorWindowExpanded ? 200 : 180)
+            
+            if viewModel.textProcessorDiffEnabled && !viewModel.textProcessorUnifiedDiffLines.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("差异详情")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(viewModel.textProcessorUnifiedDiffLines) { line in
+                                UnifiedDiffLineView(line: line)
+                            }
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                    )
+                    .frame(height: viewModel.textProcessorWindowExpanded ? 400 : 280)
+                }
+            }
+            
+            Button(action: {
+                if viewModel.textProcessorDiffEnabled {
+                    viewModel.textProcessorDisableDiff()
+                } else {
+                    viewModel.textProcessorCompareDiffUnified()
+                }
+            }) {
+                HStack {
+                    Image(systemName: viewModel.textProcessorDiffEnabled ? "xmark.circle" : "arrow.left.arrow.right")
+                    Text(viewModel.textProcessorDiffEnabled ? "退出对比" : "对比差异")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(viewModel.textProcessorDiffEnabled ? Color.red.opacity(0.2) : Color.blue.opacity(0.2))
+                .foregroundColor(viewModel.textProcessorDiffEnabled ? .red : .blue)
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
 
+// MARK: - Unified Diff Line View
+struct UnifiedDiffLineView: View {
+    let line: UnifiedDiffLine
+    
+    var body: some View {
+        let displayContent = String(line.content.characters).isEmpty ? AttributedString(" ") : line.content
+            
+        HStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(line.oldLineNumber)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, alignment: .trailing)
+                
+                Text(line.newLineNumber)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, alignment: .leading)
+            }
+            .padding(.horizontal, 8)
+            .background(Color.white.opacity(0.05))
+            
+            Text(displayContent)
+                .font(.system(size: 11, design: .monospaced))
+                .padding(.vertical, 2)
+                .padding(.leading, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(backgroundColor)
+    }
+    
+    private var backgroundColor: Color {
+        switch line.type {
+        case .added:
+            return Color.green.opacity(0.2)
+        case .deleted:
+            return Color.red.opacity(0.2)
+        case .modified:
+            return Color.yellow.opacity(0.15)
+        case .unchanged:
+            return Color.clear
+        }
+    }
+}
 // MARK: - Statistics View
 struct TextProcessorStatisticsView: View {
     @ObservedObject var viewModel: TextProcessorViewModel
@@ -139,7 +301,6 @@ struct TextProcessorStatisticsView: View {
                 .foregroundColor(.secondary)
             
             ZStack(alignment: .topLeading) {
-                // 透明背景边框
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
                     .background(
@@ -194,161 +355,6 @@ struct TextProcessorStatisticsView: View {
                 .padding(.vertical, 8)
                 .background(Color.red.opacity(0.2))
                 .foregroundColor(.red)
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-}
-
-// MARK: - Diff View (IDEA-style Inline)
-struct TextProcessorDiffView: View {
-    @ObservedObject var viewModel: TextProcessorViewModel
-    @State private var textProcessorScrollOffset: CGFloat = 0
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("文本差异对比")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                if viewModel.textProcessorDiffEnabled {
-                    HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color(red: 0.4, green: 0.15, blue: 0.15, opacity: 0.5))
-                                .frame(width: 12, height: 8)
-                            Text("删除")
-                                .font(.system(size: 10))
-                        }
-                        
-                        HStack(spacing: 4) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color(red: 0.15, green: 0.35, blue: 0.2, opacity: 0.5))
-                                .frame(width: 12, height: 8)
-                            Text("新增")
-                                .font(.system(size: 10))
-                        }
-                    }
-                    .foregroundColor(.secondary)
-                }
-            }
-            
-            // IDEA 风格的并排输入框与差异显示
-            HStack(spacing: 12) {
-                // 左侧：原文本
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("原文本")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                        
-                        if viewModel.textProcessorDiffEnabled && !viewModel.textProcessorDiffPairs.isEmpty {
-                            // 差异高亮显示模式 - 同步滚动
-                            ScrollViewReader { proxy in
-                                ScrollView {
-                                    VStack(spacing: 0) {
-                                        ForEach(Array(viewModel.textProcessorDiffPairs.enumerated()), id: \.offset) { index, pair in
-                                            TextProcessorInlineDiffLineView(
-                                                content: pair.leftContent,
-                                                type: pair.leftType,
-                                                isEmpty: pair.leftContent.isEmpty
-                                            )
-                                            .id("left-\(index)")
-                                        }
-                                    }
-                                    .background(
-                                        GeometryReader { geo in
-                                            Color.clear.preference(
-                                                key: TextProcessorScrollPreferenceKey.self,
-                                                value: geo.frame(in: .named("leftScroll")).minY
-                                            )
-                                        }
-                                    )
-                                }
-                                .coordinateSpace(name: "leftScroll")
-                                .onPreferenceChange(TextProcessorScrollPreferenceKey.self) { value in
-                                    textProcessorScrollOffset = value
-                                }
-                            }
-                        } else {
-                            // 普通编辑模式
-                            TextEditor(text: $viewModel.textProcessorDiffText1)
-                                .font(.system(size: 11, design: .monospaced))
-                                .scrollContentBackground(.hidden)
-                                .background(Color.clear)
-                                .padding(8)
-                                .onChange(of: viewModel.textProcessorDiffText1) { _ in
-                                    viewModel.textProcessorDisableDiff()
-                                }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                
-                // 右侧：对比文本
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("对比文本")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                        
-                        if viewModel.textProcessorDiffEnabled && !viewModel.textProcessorDiffPairs.isEmpty {
-                            // 差异高亮显示模式 - 同步滚动
-                            SyncedScrollView(offset: $textProcessorScrollOffset) {
-                                VStack(spacing: 0) {
-                                    ForEach(Array(viewModel.textProcessorDiffPairs.enumerated()), id: \.offset) { index, pair in
-                                        TextProcessorInlineDiffLineView(
-                                            content: pair.rightContent,
-                                            type: pair.rightType,
-                                            isEmpty: pair.rightContent.isEmpty
-                                        )
-                                        .id("right-\(index)")
-                                    }
-                                }
-                            }
-                        } else {
-                            // 普通编辑模式
-                            TextEditor(text: $viewModel.textProcessorDiffText2)
-                                .font(.system(size: 11, design: .monospaced))
-                                .scrollContentBackground(.hidden)
-                                .background(Color.clear)
-                                .padding(8)
-                                .onChange(of: viewModel.textProcessorDiffText2) { _ in
-                                    viewModel.textProcessorDisableDiff()
-                                }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .frame(height: viewModel.textProcessorWindowExpanded ? 650 : 450)
-            .animation(.spring(response: 0.3), value: viewModel.textProcessorWindowExpanded)
-            
-            Button(action: {
-                if viewModel.textProcessorDiffEnabled {
-                    viewModel.textProcessorDisableDiff()
-                } else {
-                    viewModel.textProcessorCompareDiff()
-                }
-            }) {
-                HStack {
-                    Image(systemName: viewModel.textProcessorDiffEnabled ? "xmark.circle" : "arrow.left.arrow.right")
-                    Text(viewModel.textProcessorDiffEnabled ? "退出对比" : "对比差异")
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(viewModel.textProcessorDiffEnabled ? Color.red.opacity(0.2) : Color.blue.opacity(0.2))
-                .foregroundColor(viewModel.textProcessorDiffEnabled ? .red : .blue)
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
