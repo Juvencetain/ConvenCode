@@ -23,7 +23,7 @@ struct AppTool: Identifiable, Codable, Equatable {
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
              regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker,antiSleep,
              networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock,ballSortGame,matchGame,
-             textProcessor
+             textProcessor,pdfToImage,qrCode,fileHashCalculator,watermarkTool
     }
     
     // Codable 支持 Color
@@ -75,8 +75,13 @@ class ToolsManager {
         AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard, description: "查看和管理剪贴板历史记录", category: .daily),
         AppTool(id: "dateCalculator", name: "日期计算器", icon: "calendar.badge.clock", color: .cyan, type: .dateCalculator, description: "计算日期差异或增减天数", category: .daily),
         AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator, description: "一个简单实用的计算器", category: .daily),
+        AppTool(id: "qrCode", name: "二维码工具", icon: "qrcode.viewfinder", color: .orange, type: .qrCode, description: "生成或识别二维码内容", category: .daily),
         AppTool(id: "textProcessor", name: "文本处理", icon: "text.quote", color: .green, type: .textProcessor, description: "强大的文本分析、转换和对比工具集", category: .daily),
+        AppTool(id: "fileHash", name: "文件哈希计算器", icon: "number.circle.fill", color: .green, type: .fileHashCalculator, description: "计算文件的 MD5, SHA-1, SHA-256 等哈希值", category: .development),
+        AppTool(id: "watermark",name: "图片水印工具",icon: "wand.and.rays",color: .purple,type: .watermarkTool,description: "为图片批量添加文字或图片水印",category: .daily
+        ),
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager, description: "安全地存储您的账户和密码", category: .daily),
+        AppTool(id: "pdfToImage", name: "PDF转图片", icon: "doc.richtext.fill", color: .red, type: .pdfToImage, description: "将 pdf 转换成为图片进行导出，支持批量", category: .daily),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator, description: "多语言文本翻译", category: .daily),
         AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator, description: "快速生成通用唯一识别码", category: .daily),
         AppTool(id: "scratchpad", name: "临时便签", icon: "pencil.and.scribble", color: .yellow, type: .scratchpad,description: "用于临时记录想法或信息，关闭即毁",category: .daily),
@@ -132,9 +137,21 @@ class ToolsManager {
             case .httpRequest:
                 view = AnyView(HTTPRequestView())
                 size = NSSize(width: 900, height: 650)
+            case .fileHashCalculator:
+                view = AnyView(FileHashView())
+                size = NSSize(width: 700, height: 600)
+            case .watermarkTool:
+                view = AnyView(WatermarkToolView())
+                size = NSSize(width: 900, height: 650)
+            case .pdfToImage:
+                view = AnyView(PDFToImageView())
+                size = NSSize(width: 800, height: 600)
             case .dataProcessor:
                 view = AnyView(DataProcessorView())
                 size = NSSize(width: 420, height: 560)
+            case .qrCode:
+                view = AnyView(QRCodeToolView())
+                size = NSSize(width: 700, height: 500)
             case .matchGame:
                 view = AnyView(MatchGameView())
                 size = NSSize(width: 420, height: 600)
