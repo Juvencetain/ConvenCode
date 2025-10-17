@@ -22,7 +22,8 @@ struct AppTool: Identifiable, Codable, Equatable {
         case clipboard, ipLookup, httpRequest, dataProcessor, json, calculator, translator,
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
              regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker,antiSleep,
-             networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock,ballSortGame,matchGame
+             networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock,ballSortGame,matchGame,
+             textProcessor
     }
     
     // Codable 支持 Color
@@ -74,6 +75,7 @@ class ToolsManager {
         AppTool(id: "clipboard", name: "剪贴板历史", icon: "doc.on.clipboard.fill", color: .blue, type: .clipboard, description: "查看和管理剪贴板历史记录", category: .daily),
         AppTool(id: "dateCalculator", name: "日期计算器", icon: "calendar.badge.clock", color: .cyan, type: .dateCalculator, description: "计算日期差异或增减天数", category: .daily),
         AppTool(id: "calc", name: "计算器", icon: "function", color: .purple, type: .calculator, description: "一个简单实用的计算器", category: .daily),
+        AppTool(id: "textProcessor", name: "文本处理", icon: "text.quote", color: .green, type: .textProcessor, description: "强大的文本分析、转换和对比工具集", category: .daily),
         AppTool(id: "password", name: "密码本", icon: "lock.shield.fill", color: .blue, type: .passwordManager, description: "安全地存储您的账户和密码", category: .daily),
         AppTool(id: "trans", name: "翻译", icon: "character.bubble", color: .pink, type: .translator, description: "多语言文本翻译", category: .daily),
         AppTool(id: "uuid", name: "UUID 生成器", icon: "number.circle.fill", color: .purple, type: .uuidGenerator, description: "快速生成通用唯一识别码", category: .daily),
@@ -129,7 +131,7 @@ class ToolsManager {
                 size = NSSize(width: 420, height: 560)
             case .httpRequest:
                 view = AnyView(HTTPRequestView())
-                size = NSSize(width: 900, height: 650) // Note: HTTPRequestView has a larger size
+                size = NSSize(width: 900, height: 650)
             case .dataProcessor:
                 view = AnyView(DataProcessorView())
                 size = NSSize(width: 420, height: 560)
@@ -142,6 +144,9 @@ class ToolsManager {
             case .worldClock:
                 view = AnyView(WorldClockView())
                 size = NSSize(width: 480, height: 620)
+            case .textProcessor:
+                view = AnyView(TextProcessorView())
+                size = NSSize(width: 800, height: 600)
             case .dateCalculator:
                 view = AnyView(DateCalculatorView())
                 size = NSSize(width: 420, height: 500)

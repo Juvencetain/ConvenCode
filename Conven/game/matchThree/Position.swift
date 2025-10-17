@@ -3,7 +3,7 @@
 //  Conven
 //
 //  Created by 土豆星球 on 2025/10/17.
-//  Updated by Gemini on 2025/10/17 with a state-driven game loop for maximum performance.
+//  Updated with smooth animations on 2025/10/17.
 //
 
 import SwiftUI
@@ -64,7 +64,6 @@ class MatchGameViewModel: ObservableObject {
     // MARK: - Private Properties
     private enum GameState { case idle, processing }
     private var gameState: GameState = .idle
-    
     private var matchGameComboTimer: Timer?
     
     // MARK: - Init
@@ -87,8 +86,8 @@ class MatchGameViewModel: ObservableObject {
     }
     
     func matchGameSelectGem(at position: Position) {
-        // [TWEAK] 确保点击位置在棋盘内
-        guard position.row >= 0 && position.row < matchGameGridSize && position.col >= 0 && position.col < matchGameGridSize else { return }
+        guard position.row >= 0 && position.row < matchGameGridSize &&
+              position.col >= 0 && position.col < matchGameGridSize else { return }
         guard gameState == .idle, !matchGameIsGameOver else { return }
         
         if let selected = matchGameSelectedPosition {
@@ -96,10 +95,15 @@ class MatchGameViewModel: ObservableObject {
                 matchGameSwapGems(at: selected, and: position)
                 matchGameSelectedPosition = nil
             } else {
-                matchGameSelectedPosition = position
+                // 添加平滑的选择切换动画
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    matchGameSelectedPosition = position
+                }
             }
         } else {
-            matchGameSelectedPosition = position
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                matchGameSelectedPosition = position
+            }
         }
     }
     
@@ -127,19 +131,21 @@ class MatchGameViewModel: ObservableObject {
     private func matchGameSwapGems(at pos1: Position, and pos2: Position) {
         gameState = .processing
         
-        withAnimation(.easeOut(duration: 0.2)) {
+        // 更流畅的交换动画
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
             let temp = matchGameBoard[pos1.row][pos1.col]
             matchGameBoard[pos1.row][pos1.col] = matchGameBoard[pos2.row][pos2.col]
             matchGameBoard[pos2.row][pos2.col] = temp
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             let matches = self.findMatches()
             if !matches.isEmpty {
                 self.matchGameMoves -= 1
                 self.processMatches()
             } else {
-                withAnimation(.easeOut(duration: 0.2)) {
+                // 无效交换 - 弹回动画
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                     let temp = self.matchGameBoard[pos1.row][pos1.col]
                     self.matchGameBoard[pos1.row][pos1.col] = self.matchGameBoard[pos2.row][pos2.col]
                     self.matchGameBoard[pos2.row][pos2.col] = temp
@@ -153,43 +159,82 @@ class MatchGameViewModel: ObservableObject {
         let matches = findMatches()
         
         if matches.isEmpty {
+            // 连击结束，平滑过渡
+            if matchGameCombo > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        self.matchGameCombo = 0
+                    }
+                }
+            }
             gameState = .idle
             checkGameOver()
             return
         }
         
-        matchGameCombo += 1
+        // 连击增加动画
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            matchGameCombo += 1
+        }
         resetComboTimer()
         
         clearMatches(animated: true) {
             self.fillEmptySpaces(animated: true) {
-                self.processMatches()
+                // 添加短暂延迟让玩家看清楚新掉落的宝石
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.processMatches()
+                }
             }
         }
     }
 
     private func findMatches() -> Set<Position> {
         var matchPositions = Set<Position>()
+        
+        // 横向检测
         for row in 0..<matchGameGridSize {
             for col in 0..<(matchGameGridSize - 2) {
                 guard let gem = matchGameBoard[row][col] else { continue }
                 if let next1 = matchGameBoard[row][col + 1],
                    let next2 = matchGameBoard[row][col + 2],
                    gem.matchGameType == next1.matchGameType && gem.matchGameType == next2.matchGameType {
-                    (0...2).forEach { matchPositions.insert(Position(row: row, col: col + $0)) }
+                    var length = 3
+                    for i in 0..<length {
+                        matchPositions.insert(Position(row: row, col: col + i))
+                    }
+                    // 检测更长的连续匹配
+                    while col + length < matchGameGridSize,
+                          let nextGem = matchGameBoard[row][col + length],
+                          nextGem.matchGameType == gem.matchGameType {
+                        matchPositions.insert(Position(row: row, col: col + length))
+                        length += 1
+                    }
                 }
             }
         }
+        
+        // 纵向检测
         for col in 0..<matchGameGridSize {
             for row in 0..<(matchGameGridSize - 2) {
                 guard let gem = matchGameBoard[row][col] else { continue }
                 if let next1 = matchGameBoard[row + 1][col],
                    let next2 = matchGameBoard[row + 2][col],
                    gem.matchGameType == next1.matchGameType && gem.matchGameType == next2.matchGameType {
-                    (0...2).forEach { matchPositions.insert(Position(row: row + $0, col: col)) }
+                    var length = 3
+                    for i in 0..<length {
+                        matchPositions.insert(Position(row: row + i, col: col))
+                    }
+                    // 检测更长的连续匹配
+                    while row + length < matchGameGridSize,
+                          let nextGem = matchGameBoard[row + length][col],
+                          nextGem.matchGameType == gem.matchGameType {
+                        matchPositions.insert(Position(row: row + length, col: col))
+                        length += 1
+                    }
                 }
             }
         }
+        
         return matchPositions
     }
     
@@ -202,17 +247,24 @@ class MatchGameViewModel: ObservableObject {
         
         if animated {
             let baseScore = 10 + (matchPositions.count - 3) * 5
-            matchGameScore += baseScore * max(1, matchGameCombo)
+            let comboMultiplier = max(1, matchGameCombo)
+            let earnedScore = baseScore * comboMultiplier
+            
+            // 平滑的分数增加动画
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                matchGameScore += earnedScore
+            }
             
             matchGameMatchingPositions = matchPositions
-            // [TWEAK] 使用更有趣的弹簧动画进行消除
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) {
+            
+            // 更有冲击力的消除动画
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
                 for position in matchPositions {
                     self.matchGameBoard[position.row][position.col] = nil
                 }
             }
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { // 延迟时间要匹配动画
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 self.matchGameMatchingPositions = []
                 completion?()
             }
@@ -225,10 +277,10 @@ class MatchGameViewModel: ObservableObject {
     }
 
     private func fillEmptySpaces(animated: Bool, completion: (() -> Void)? = nil) {
-        // [TWEAK] Canvas 动画很快，可以缩短延迟
-        let duration = 0.35
+        let duration = 0.4
         if animated {
-            withAnimation(.easeOut(duration: duration)) {
+            // 更自然的掉落动画
+            withAnimation(.spring(response: duration, dampingFraction: 0.75)) {
                 performFillLogic()
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) {
@@ -262,10 +314,11 @@ class MatchGameViewModel: ObservableObject {
     
     private func resetComboTimer() {
         matchGameComboTimer?.invalidate()
-        matchGameComboTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-            // [TWEAK] 连击结束时加一个UI反馈
+        matchGameComboTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
             DispatchQueue.main.async {
-                self?.matchGameCombo = 0
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    self?.matchGameCombo = 0
+                }
             }
         }
     }
@@ -281,4 +334,3 @@ class MatchGameViewModel: ObservableObject {
         }
     }
 }
-
