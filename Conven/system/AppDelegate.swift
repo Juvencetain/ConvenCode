@@ -189,12 +189,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
         
-        // 初始化并启动剪贴板监控
         clipboardMonitor = ClipboardMonitor(persistenceController: PersistenceController.shared)
         clipboardMonitor?.startMonitoring()
         print("✅ 剪贴板监控已启动")
-        // [新增] 执行启动命令
-        startupExecutorViewModel.startupExecutorExecuteEnabledCommands()
+
+        // [修改] 延迟1秒后异步执行启动命令
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            await startupExecutorViewModel.executeEnabledCommandsOnStartup()
+        }
+
         // 设置全局事件监听器 - 监听鼠标点击和键盘事件
         setupEventMonitor()
     }

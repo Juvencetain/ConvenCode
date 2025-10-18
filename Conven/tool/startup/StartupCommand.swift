@@ -1,264 +1,372 @@
 import SwiftUI
 import Combine
 import Foundation
-import UserNotifications // 导入 UserNotifications
 
 // MARK: - Startup Command Model
 struct StartupCommand: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
-    var startupExecutorName: String // 名称，方便用户识别
-    var startupExecutorCommand: String // 要执行的命令
-    var startupExecutorIsEnabled: Bool = true // 是否启用
-    var startupExecutorExecutionTime: Date? // 上次执行时间 (可选)
-    var startupExecutorLastOutput: String? // 上次执行输出 (可选)
-
-    init(id: UUID = UUID(), name: String, command: String, isEnabled: Bool = true) {
+    var name: String
+    var command: String
+    var isEnabled: Bool
+    var delaySeconds: Double
+    var executionTime: Date?
+    var lastOutput: String?
+    var exitCode: Int32?
+    var executionCount: Int
+    
+    init(
+        id: UUID = UUID(),
+        name: String,
+        command: String,
+        isEnabled: Bool = true,
+        delaySeconds: Double = 0
+    ) {
         self.id = id
-        self.startupExecutorName = name
-        self.startupExecutorCommand = command
-        self.startupExecutorIsEnabled = isEnabled
+        self.name = name
+        self.command = command
+        self.isEnabled = isEnabled
+        self.delaySeconds = delaySeconds
+        self.executionCount = 0
+    }
+}
+
+// MARK: - Execution Log Model
+struct ExecutionLog: Identifiable, Codable {
+    let id: UUID
+    let commandId: UUID
+    let commandName: String
+    let timestamp: Date
+    let output: String
+    let errorOutput: String
+    let exitCode: Int32
+    let executionType: ExecutionType
+    let duration: TimeInterval
+    
+    enum ExecutionType: String, Codable {
+        case startup = "启动"
+        case manual = "手动"
     }
 }
 
 // MARK: - Startup Executor ViewModel
 @MainActor
 class StartupExecutorViewModel: ObservableObject {
-    @Published var startupExecutorCommands: [StartupCommand] = []
-    @Published var startupExecutorIsLoading: Bool = false // 整体加载状态（用于初始加载）
-    @Published var startupExecutorShowAddEditSheet = false
-    @Published var startupExecutorCommandToEdit: StartupCommand?
-    // [新增] 跟踪当前手动执行的命令 ID
-    @Published var startupExecutorExecutingCommandId: UUID? = nil
-
-    private let startupExecutorStorageKey = "startup_executor_commands"
+    @Published var commands: [StartupCommand] = []
+    @Published var executionLogs: [ExecutionLog] = []
+    @Published var executingCommandId: UUID?
+    @Published var showAddEditSheet = false
+    @Published var commandToEdit: StartupCommand?
+    @Published var showLogsSheet = false
+    @Published var searchText: String = ""
+    @Published var systemEnvironment: [String: String] = [:]
+    
+    private let commandsKey = "startup_executor_commands_v2"
+    private let maxLogsCount = 1000
     private var cancellables = Set<AnyCancellable>()
-
+    
+    // 日志文件路径
+    private var logsFileURL: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let appFolder = appSupport.appendingPathComponent("StartupExecutor", isDirectory: true)
+        
+        // 确保目录存在
+        try? FileManager.default.createDirectory(at: appFolder, withIntermediateDirectories: true)
+        
+        return appFolder.appendingPathComponent("execution_logs.json")
+    }
+    
+    var filteredCommands: [StartupCommand] {
+        if searchText.isEmpty {
+            return commands
+        }
+        return commands.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.command.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
+    var statistics: (total: Int, enabled: Int) {
+        let total = commands.count
+        let enabled = commands.filter { $0.isEnabled }.count
+        return (total, enabled)
+    }
+    
     init() {
-        startupExecutorLoadCommands()
-        // 监听命令数组变化并自动保存
-        $startupExecutorCommands
+        loadCommands()
+        loadLogs()
+        loadSystemEnvironment()
+        
+        $commands
             .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.startupExecutorSaveCommands()
-            }
+            .sink { [weak self] _ in self?.saveCommands() }
             .store(in: &cancellables)
-        // 可选：如果尚未在 AppDelegate 中请求权限，可以在此处请求
-        // startupExecutorRequestNotificationPermission()
+        
+        $executionLogs
+            .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in self?.saveLogs() }
+            .store(in: &cancellables)
     }
-
+    
+    // MARK: - Environment
+    private func loadSystemEnvironment() {
+        systemEnvironment = ProcessInfo.processInfo.environment
+        print("📦 已加载 \(systemEnvironment.count) 个系统环境变量")
+    }
+    
     // MARK: - Command Management
-    func startupExecutorAddCommand(name: String, command: String) {
-        let newCommand = StartupCommand(name: name, command: command)
-        startupExecutorCommands.append(newCommand)
+    func addCommand(_ command: StartupCommand) {
+        commands.append(command)
     }
-
-    func startupExecutorUpdateCommand(_ command: StartupCommand) {
-        if let index = startupExecutorCommands.firstIndex(where: { $0.id == command.id }) {
-            startupExecutorCommands[index] = command
+    
+    func updateCommand(_ command: StartupCommand) {
+        if let index = commands.firstIndex(where: { $0.id == command.id }) {
+            commands[index] = command
         }
     }
-
-    func startupExecutorDeleteCommand(at offsets: IndexSet) {
-        startupExecutorCommands.remove(atOffsets: offsets)
+    
+    func deleteCommand(_ command: StartupCommand) {
+        commands.removeAll { $0.id == command.id }
+        executionLogs.removeAll { $0.commandId == command.id }
     }
-
-    func startupExecutorDeleteCommand(_ command: StartupCommand) {
-        startupExecutorCommands.removeAll { $0.id == command.id }
+    
+    func deleteCommands(at offsets: IndexSet) {
+        let commandsToDelete = offsets.map { filteredCommands[$0] }
+        commandsToDelete.forEach { deleteCommand($0) }
     }
-
-    func startupExecutorToggleCommand(_ command: StartupCommand) {
-        // 由于 SwiftUI 的 @Binding，这个方法可能不再需要手动调用，
-        // 但保留它以防万一有其他地方需要切换状态
-        if let index = startupExecutorCommands.firstIndex(where: { $0.id == command.id }) {
-            startupExecutorCommands[index].startupExecutorIsEnabled.toggle()
+    
+    // MARK: - Execution
+    func executeSingleCommand(commandId: UUID) async {
+        guard executingCommandId == nil else { return }
+        guard let index = commands.firstIndex(where: { $0.id == commandId }) else { return }
+        
+        executingCommandId = commandId
+        let command = commands[index]
+        
+        print("⏳ 手动执行: \(command.name)")
+        
+        if command.delaySeconds > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(command.delaySeconds * 1_000_000_000))
         }
-    }
-
-    // MARK: - Execution Logic
-
-    // [新增] 手动执行单个命令并更新其状态的函数
-    func startupExecutorExecuteSingleCommand(commandId: UUID) async {
-        guard startupExecutorExecutingCommandId == nil else {
-            print("⚠️ 另一个命令正在执行中。")
-            return // 为简单起见，防止并发手动执行
+        
+        let startTime = Date()
+        let (output, errorOutput, exitCode) = await executeShellCommand(command.command)
+        let duration = Date().timeIntervalSince(startTime)
+        
+        // 合并输出用于显示
+        var displayOutput = ""
+        if !output.isEmpty {
+            displayOutput = output
         }
-
-        // 查找命令索引
-        guard let index = startupExecutorCommands.firstIndex(where: { $0.id == commandId }) else {
-            print("❌ 未找到要执行的命令。")
-            return
-        }
-
-        // 设置此特定命令的加载状态
-        startupExecutorExecutingCommandId = commandId
-        let commandToExecute = startupExecutorCommands[index] // 获取一个副本
-
-        print("⏳ 手动执行: \(commandToExecute.startupExecutorName) (\(commandToExecute.startupExecutorCommand))")
-        let (output, errorOutput, exitCode) = await executeShellCommand(commandToExecute.startupExecutorCommand)
-
-        // 在主线程上更新数组中的命令
-        // 重新查找索引以防数组发生更改（虽然在这里不太可能，但这是好习惯）
-        if let updatedIndex = startupExecutorCommands.firstIndex(where: { $0.id == commandId }) {
-            startupExecutorCommands[updatedIndex].startupExecutorExecutionTime = Date()
-            if exitCode == 0 {
-                startupExecutorCommands[updatedIndex].startupExecutorLastOutput = output.isEmpty ? "执行成功 (手动)" : output
-                print("✅ 手动执行成功: \(commandToExecute.startupExecutorName)")
-            } else {
-                // [修改] 明确标记错误来源
-                startupExecutorCommands[updatedIndex].startupExecutorLastOutput = "错误 (手动): \(errorOutput)"
-                print("❌ 手动执行失败: \(commandToExecute.startupExecutorName) - \(errorOutput)")
+        if !errorOutput.isEmpty {
+            if !displayOutput.isEmpty {
+                displayOutput += "\n"
             }
+            displayOutput += errorOutput
         }
-
-        // 清除加载状态
-        startupExecutorExecutingCommandId = nil
+        if displayOutput.isEmpty {
+            displayOutput = "已执行"
+        }
+        
+        if let updatedIndex = commands.firstIndex(where: { $0.id == commandId }) {
+            commands[updatedIndex].executionTime = Date()
+            commands[updatedIndex].lastOutput = displayOutput
+            commands[updatedIndex].exitCode = exitCode
+            commands[updatedIndex].executionCount += 1
+        }
+        
+        let log = ExecutionLog(
+            id: UUID(),
+            commandId: commandId,
+            commandName: command.name,
+            timestamp: Date(),
+            output: output,
+            errorOutput: errorOutput,
+            exitCode: exitCode,
+            executionType: .manual,
+            duration: duration
+        )
+        addLog(log)
+        
+        executingCommandId = nil
+        print("✅ 手动执行完成: \(command.name) (耗时 \(String(format: "%.2f", duration))s, 退出码: \(exitCode))")
     }
-
-    // 应用启动时执行所有启用的命令
-    func startupExecutorExecuteEnabledCommands() {
+    
+    func executeEnabledCommandsOnStartup() {
         print("🚀 开始执行启动命令...")
-        let enabledCommands = startupExecutorCommands.filter { $0.startupExecutorIsEnabled }
+        let enabledCommands = commands.filter { $0.isEnabled }.sorted { $0.delaySeconds < $1.delaySeconds }
+        
         guard !enabledCommands.isEmpty else {
-            print("ℹ️ 没有启用的启动命令。")
+            print("ℹ️ 没有可用的启动命令")
             return
         }
-
+        
         Task(priority: .background) {
             for command in enabledCommands {
-                // 如果有命令正在手动执行，短暂等待
-                while await startupExecutorExecutingCommandId != nil {
-                     try? await Task.sleep(nanoseconds: 500_000_000) // 等待 0.5 秒
+                while await executingCommandId != nil {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                 }
-
-                print("⏳ [启动] 正在执行: \(command.startupExecutorName) (\(command.startupExecutorCommand))")
-                let (output, errorOutput, exitCode) = await executeShellCommand(command.startupExecutorCommand)
-
-                // 在 MainActor 上更新 UI 状态
-                await MainActor.run {
-                    if let index = startupExecutorCommands.firstIndex(where: { $0.id == command.id }) {
-                        startupExecutorCommands[index].startupExecutorExecutionTime = Date()
-                        if exitCode == 0 {
-                             // [修改] 明确标记来源
-                            startupExecutorCommands[index].startupExecutorLastOutput = output.isEmpty ? "执行成功 (启动)" : output
-                            print("✅ [启动] 执行成功: \(command.startupExecutorName)")
-                        } else {
-                             // [修改] 明确标记错误来源
-                            startupExecutorCommands[index].startupExecutorLastOutput = "错误 (启动): \(errorOutput)"
-                            print("❌ [启动] 执行失败: \(command.startupExecutorName) - \(errorOutput)")
-                        }
+                
+                if command.delaySeconds > 0 {
+                    print("⏰ 延迟 \(command.delaySeconds)秒后执行: \(command.name)")
+                    try? await Task.sleep(nanoseconds: UInt64(command.delaySeconds * 1_000_000_000))
+                }
+                
+                print("⏳ [启动] 正在执行: \(command.name)")
+                
+                let startTime = Date()
+                let (output, errorOutput, exitCode) = await executeShellCommand(command.command)
+                let duration = Date().timeIntervalSince(startTime)
+                
+                var displayOutput = ""
+                if !output.isEmpty {
+                    displayOutput = output
+                }
+                if !errorOutput.isEmpty {
+                    if !displayOutput.isEmpty {
+                        displayOutput += "\n"
                     }
+                    displayOutput += errorOutput
                 }
-
-                // 发送通知
-                startupExecutorSendNotification(
-                    commandName: command.startupExecutorName,
-                    success: exitCode == 0,
-                    message: exitCode == 0 ? (output.isEmpty ? "已成功执行。" : output) : errorOutput
-                )
-
-                // 短暂延迟
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 秒
+                if displayOutput.isEmpty {
+                    displayOutput = "已执行"
+                }
+                
+                await MainActor.run {
+                    if let index = commands.firstIndex(where: { $0.id == command.id }) {
+                        commands[index].executionTime = Date()
+                        commands[index].lastOutput = displayOutput
+                        commands[index].exitCode = exitCode
+                        commands[index].executionCount += 1
+                    }
+                    
+                    let log = ExecutionLog(
+                        id: UUID(),
+                        commandId: command.id,
+                        commandName: command.name,
+                        timestamp: Date(),
+                        output: output,
+                        errorOutput: errorOutput,
+                        exitCode: exitCode,
+                        executionType: .startup,
+                        duration: duration
+                    )
+                    addLog(log)
+                }
+                
+                print("✅ [启动] 执行完成: \(command.name) (耗时 \(String(format: "%.2f", duration))s, 退出码: \(exitCode))")
+                
+                try? await Task.sleep(nanoseconds: 300_000_000)
             }
-            print("🏁 启动命令执行完毕。")
+            print("🏁 启动命令执行完毕")
         }
     }
-
-    // 发送通知的函数
-    private func startupExecutorSendNotification(commandName: String, success: Bool, message: String) {
-        let content = UNMutableNotificationContent()
-        content.title = "启动命令: \(commandName)"
-        content.subtitle = success ? "✅ 执行成功" : "❌ 执行失败"
-        content.body = message.isEmpty ? (success ? "命令已完成。" : "执行出错，请检查。") : message
-        content.sound = success ? UNNotificationSound.default : UNNotificationSound(named: UNNotificationSoundName("Funk")) // 错误时使用不同声音（可选）
-
-        // 使用命令 ID 和时间戳确保唯一性
-        let identifier = "startup_\(commandName)_\(Date().timeIntervalSince1970)"
-        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil) // 立即触发
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ 发送启动命令通知失败 for \(commandName): \(error.localizedDescription)")
-            } else {
-                print("📨 已发送启动命令通知 for \(commandName)")
-            }
-        }
-    }
-
-    /* // 可选：如果需要在此处请求通知权限
-    private func startupExecutorRequestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if granted {
-                print("✅ StartupExecutor: 已获得通知权限。")
-            } else if let error = error {
-                print("❌ StartupExecutor: 请求通知权限错误: \(error.localizedDescription)")
-            }
-        }
-    }
-    */
-
-    // 辅助函数：执行 Shell 命令 (移除 private)
-    func executeShellCommand(_ command: String) async -> (output: String, error: String, exitCode: Int32) {
-        await withCheckedContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh") // 使用 zsh
-            process.arguments = ["-c", command] // 使用 -c 参数执行命令字符串
-
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-
-                let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let error = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-                continuation.resume(returning: (output, error, process.terminationStatus))
-            } catch {
-                continuation.resume(returning: ("", "启动进程失败: \(error.localizedDescription)", -1))
+    
+    // MARK: - Shell Execution
+    private func executeShellCommand(_ command: String) async -> (output: String, errorOutput: String, exitCode: Int32) {
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                
+                process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                // 关键:使用 -l 参数加载用户的 shell 配置(.zshrc 等)
+                process.arguments = ["-l", "-c", command]
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
+                
+                // 使用系统环境变量作为基础
+                process.environment = ProcessInfo.processInfo.environment
+                
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    
+                    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    
+                    let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let errorOutput = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    
+                    continuation.resume(returning: (output, errorOutput, process.terminationStatus))
+                } catch {
+                    continuation.resume(returning: ("", "执行失败: \(error.localizedDescription)", -1))
+                }
             }
         }
     }
-
+    
+    // MARK: - Logs
+    private func addLog(_ log: ExecutionLog) {
+        executionLogs.insert(log, at: 0)
+        if executionLogs.count > maxLogsCount {
+            executionLogs = Array(executionLogs.prefix(maxLogsCount))
+        }
+    }
+    
+    func clearLogs() {
+        executionLogs.removeAll()
+        
+        // 删除日志文件
+        do {
+            if FileManager.default.fileExists(atPath: logsFileURL.path) {
+                try FileManager.default.removeItem(at: logsFileURL)
+                print("🗑️ 日志文件已删除")
+            }
+        } catch {
+            print("❌ 删除日志文件失败: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - Persistence
-    private func startupExecutorLoadCommands() {
-        self.startupExecutorIsLoading = true
-        DispatchQueue.global(qos: .userInitiated).async {
-            guard let data = UserDefaults.standard.data(forKey: self.startupExecutorStorageKey),
-                  let commands = try? JSONDecoder().decode([StartupCommand].self, from: data) else {
-                DispatchQueue.main.async {
-                    self.startupExecutorIsLoading = false
-                    print("ℹ️ 未找到保存的启动命令，或解码失败。")
-                }
+    private func saveCommands() {
+        if let encoded = try? JSONEncoder().encode(commands) {
+            UserDefaults.standard.set(encoded, forKey: commandsKey)
+        }
+    }
+    
+    private func loadCommands() {
+        if let data = UserDefaults.standard.data(forKey: commandsKey),
+           let decoded = try? JSONDecoder().decode([StartupCommand].self, from: data) {
+            commands = decoded
+        }
+    }
+    
+    private func saveLogs() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                
+                let data = try encoder.encode(self.executionLogs)
+                try data.write(to: self.logsFileURL, options: .atomic)
+                
+                print("💾 日志已保存到: \(self.logsFileURL.path)")
+            } catch {
+                print("❌ 保存日志失败: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func loadLogs() {
+        do {
+            guard FileManager.default.fileExists(atPath: logsFileURL.path) else {
+                print("ℹ️ 日志文件不存在，将创建新文件")
                 return
             }
-            DispatchQueue.main.async {
-                self.startupExecutorCommands = commands
-                self.startupExecutorIsLoading = false
-                print("✅ 成功加载 \(commands.count) 条启动命令。")
-            }
-        }
-    }
-
-    private func startupExecutorSaveCommands() {
-        // 使用 Task 确保在后台线程执行
-        Task(priority: .background) {
-             if let encoded = try? JSONEncoder().encode(self.startupExecutorCommands) {
-                UserDefaults.standard.set(encoded, forKey: self.startupExecutorStorageKey)
-                // 在 MainActor 上打印日志是安全的
-                await MainActor.run {
-                    print("💾 已保存 \(self.startupExecutorCommands.count) 条启动命令。")
-                }
-            } else {
-                 await MainActor.run {
-                    print("❌ 保存启动命令失败。")
-                }
-            }
+            
+            let data = try Data(contentsOf: logsFileURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            
+            executionLogs = try decoder.decode([ExecutionLog].self, from: data)
+            print("✅ 已加载 \(executionLogs.count) 条日志记录")
+        } catch {
+            print("❌ 加载日志失败: \(error.localizedDescription)")
+            executionLogs = []
         }
     }
 }
