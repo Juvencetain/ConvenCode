@@ -25,7 +25,7 @@ struct CatMenuView: View {
                 headerSection
             
                 // 添加版本检测的动画视图
-                if #available(macOS 15, *) {
+                if #available(macOS 26.0, *) {
                     LottieView(animationName: "Cat playing animation")
                         .frame(width: 180, height: 120)
                         .scaleEffect(0.2)
