@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - 金币记录悬浮窗
 struct CoinHistoryPopover: View {
     @ObservedObject var historyManager = CoinHistoryManager.shared
+    @State private var isPulsing = false
     
     var body: some View {
         ZStack {
@@ -19,15 +20,28 @@ struct CoinHistoryPopover: View {
                 
                 // 实时收入显示（固定在顶部）
                 HStack(spacing: 8) {
-                    // 动态图标
+                    // 动态图标 - 波浪扩散效果
                     ZStack {
+                        // 背景圆
                         Circle()
                             .fill(Color.green.opacity(0.15))
                             .frame(width: 32, height: 32)
                         
+                        // 扩散波纹
+                        Circle()
+                            .stroke(Color.green, lineWidth: 2)
+                            .frame(width: 32, height: 32)
+                            .scaleEffect(isPulsing ? 1.5 : 1.0)
+                            .opacity(isPulsing ? 0 : 0.8)
+                            .animation(.easeOut(duration: 1.5).repeatForever(autoreverses: false), value: isPulsing)
+                        
+                        // 主图标
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 14))
                             .foregroundColor(.green)
+                    }
+                    .onAppear {
+                        isPulsing = true
                     }
                     
                     // 描述
@@ -44,7 +58,7 @@ struct CoinHistoryPopover: View {
                     Spacer()
                     
                     // 实时金额
-                    Text("+\(String(format: "%.3f", historyManager.getCurrentHourIncome()))")
+                    Text("+\(String(format: "%.3f", historyManager.currentHourIncome))")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.green)
                         .monospacedDigit()
@@ -106,53 +120,6 @@ struct CoinHistoryPopover: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-    }
-    
-    // MARK: - 实时收入显示
-    @available(macOS 14.0, *)
-    private var realtimeIncomeView: some View {
-        HStack(spacing: 8) {
-            // 动态图标
-            ZStack {
-                Circle()
-                    .fill(Color.green.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(.green)
-                    .symbolEffect(.pulse, options: .repeating)
-            }
-            
-            // 描述
-            VStack(alignment: .leading, spacing: 2) {
-                Text("每秒收入")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.primary)
-                
-                Text("持续增长中...")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            // 实时金额
-            Text("+\(String(format: "%.3f", historyManager.getCurrentHourIncome()))")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.green)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.green.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.green.opacity(0.2), lineWidth: 1)
-                )
-        )
     }
     
     // MARK: - 空状态视图
