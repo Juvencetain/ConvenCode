@@ -12,6 +12,7 @@ struct CatMenuView: View {
     @State private var showDetailStats = false
     @State private var pinnedTools: [AppTool] = []
     @State private var showSchedule = false
+    @State private var showCoinHistory = false
     
     var body: some View {
         ZStack {
@@ -23,7 +24,7 @@ struct CatMenuView: View {
             VStack(spacing: 0) {
                 // 头部信息
                 headerSection
-            
+                
                 // 添加版本检测的动画视图
                 if #available(macOS 26.0, *) {
                     LottieView(animationName: "Cat playing animation")
@@ -33,10 +34,10 @@ struct CatMenuView: View {
                         .offset(y: -1)
                         .allowsHitTesting(false)
                 }
-            
+                
                 Divider()
                     .padding(.horizontal, 16)
-
+                
                 // 状态区域
                 if viewModel.isAlive {
                     statsSection
@@ -45,10 +46,10 @@ struct CatMenuView: View {
                     deathSection
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
-
+                
                 Divider()
                     .padding(.horizontal, 16)
-
+                
                 // 操作按钮区域
                 if viewModel.isAlive {
                     actionsSection
@@ -146,24 +147,29 @@ struct CatMenuView: View {
                     Text(viewModel.catName)
                         .font(.system(size: 16, weight: .semibold))
                     //金币
-                    HStack(spacing: 3) { // Spacing within coin display
+                    HStack(spacing: 3) {
                         if viewModel.isAlive {
                             Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 10)) // Keep size 10 or 11
+                                .font(.system(size: 10))
                                 .foregroundColor(.yellow)
-
-                            // [修改] Further reduce font size and add minimumScaleFactor
+                            
                             Text(String(format: "%.3f", viewModel.coinBalance))
-                                .font(.system(size: 10, weight: .medium)) // Changed from 11 to 10
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7) // Allow text to shrink
-
+                                .minimumScaleFactor(0.7)
+                            
                             Text(String(format: "+%.3f/s", viewModel.coinGenerationRate))
-                                .font(.system(size: 9)) // Also reduced rate font size slightly
+                                .font(.system(size: 9))
                                 .foregroundColor(.secondary.opacity(0.7))
-                                .minimumScaleFactor(0.7) // Allow rate to shrink too
+                                .minimumScaleFactor(0.7)
                         }
+                    }
+                    .onHover { hovering in
+                        showCoinHistory = hovering
+                    }
+                    .popover(isPresented: $showCoinHistory, arrowEdge: .trailing) {
+                        CoinHistoryPopover()
                     }
                 }
                 
@@ -246,7 +252,7 @@ struct CatMenuView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
     }
-
+    
     // MARK: - Actions Section
     private var actionsSection: some View {
         HStack(spacing: 12) {
@@ -257,18 +263,18 @@ struct CatMenuView: View {
                         Circle()
                             .fill(Color.blue.opacity(0.2))
                             .frame(width: 52, height: 52)
-
+                        
                         Image(systemName: "gamecontroller.fill") // 玩具图标
                             .font(.system(size: 22))
                             .foregroundStyle(Color.blue.gradient)
                     }
-                     // 使用 HStack 组合标签
+                    // 使用 HStack 组合标签
                     HStack(spacing: 2) {
-                         Text("玩具 (\(Int(CatConfig.GamePlay.interactionCost))")
-                         Image(systemName: "dollarsign.circle.fill") // 金币图标
-                              .font(.system(size: 9))
-                              .foregroundColor(.yellow) // 设置为黄色
-                         Text(")")
+                        Text("玩具 (\(Int(CatConfig.GamePlay.interactionCost))")
+                        Image(systemName: "dollarsign.circle.fill") // 金币图标
+                            .font(.system(size: 9))
+                            .foregroundColor(.yellow) // 设置为黄色
+                        Text(")")
                     }
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.primary)
@@ -279,26 +285,26 @@ struct CatMenuView: View {
             .pointingHandCursor()
             .disabled(viewModel.coinBalance < CatConfig.GamePlay.interactionCost)
             .opacity(viewModel.coinBalance < CatConfig.GamePlay.interactionCost ? 0.5 : 1.0)
-
+            
             // 猫粮按钮
             Button(action: viewModel.feed) {
                 VStack(spacing: 8) {
                     ZStack {
-                       Circle()
+                        Circle()
                             .fill(Color.orange.opacity(0.2))
                             .frame(width: 52, height: 52)
-
+                        
                         Image(systemName: "fish.fill") // 猫粮图标
                             .font(.system(size: 22))
                             .foregroundStyle(Color.orange.gradient)
                     }
                     // 使用 HStack 组合标签
                     HStack(spacing: 2) {
-                         Text("猫粮 (\(Int(CatConfig.GamePlay.interactionCost))")
-                         Image(systemName: "dollarsign.circle.fill") // 金币图标
-                              .font(.system(size: 9))
-                              .foregroundColor(.yellow) // 设置为黄色
-                         Text(")")
+                        Text("猫粮 (\(Int(CatConfig.GamePlay.interactionCost))")
+                        Image(systemName: "dollarsign.circle.fill") // 金币图标
+                            .font(.system(size: 9))
+                            .foregroundColor(.yellow) // 设置为黄色
+                        Text(")")
                     }
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.primary)
@@ -309,7 +315,7 @@ struct CatMenuView: View {
             .pointingHandCursor()
             .disabled(viewModel.coinBalance < CatConfig.GamePlay.interactionCost)
             .opacity(viewModel.coinBalance < CatConfig.GamePlay.interactionCost ? 0.5 : 1.0)
-
+            
             // 猫砂按钮
             Button(action: viewModel.clean) {
                 VStack(spacing: 8) {
@@ -317,18 +323,18 @@ struct CatMenuView: View {
                         Circle()
                             .fill(Color.green.opacity(0.2))
                             .frame(width: 52, height: 52)
-
+                        
                         Image(systemName: "tray.fill") // 猫砂图标
                             .font(.system(size: 22))
                             .foregroundStyle(Color.green.gradient)
                     }
-                     // 使用 HStack 组合标签
+                    // 使用 HStack 组合标签
                     HStack(spacing: 2) {
-                         Text("猫砂 (\(Int(CatConfig.GamePlay.interactionCost))")
-                         Image(systemName: "dollarsign.circle.fill") // 金币图标
-                              .font(.system(size: 9))
-                              .foregroundColor(.yellow) // 设置为黄色
-                         Text(")")
+                        Text("猫砂 (\(Int(CatConfig.GamePlay.interactionCost))")
+                        Image(systemName: "dollarsign.circle.fill") // 金币图标
+                            .font(.system(size: 9))
+                            .foregroundColor(.yellow) // 设置为黄色
+                        Text(")")
                     }
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.primary)
@@ -1009,32 +1015,32 @@ struct ToolsMenuView: View {
     }
     
     var body: some View {
-            ZStack {
-                VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                    .opacity(1)
-                    .ignoresSafeArea()
+        ZStack {
+            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(1)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // 标题栏和搜索栏
+                headerView
                 
-                VStack(spacing: 0) {
-                    // 标题栏和搜索栏
-                    headerView
-                    
-                    // 使用 Picker 替代 TabView 以实现系统风格的选项卡
-                    Picker("选择分类", selection: $selectedCategory) {
-                        ForEach(ToolCategory.allCases, id: \.self) { category in
-                            Text(category.rawValue).tag(category)
-                        }
+                // 使用 Picker 替代 TabView 以实现系统风格的选项卡
+                Picker("选择分类", selection: $selectedCategory) {
+                    ForEach(ToolCategory.allCases, id: \.self) { category in
+                        Text(category.rawValue).tag(category)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    
-                    // 根据选择的分类显示工具网格
-                    toolGridView(for: selectedCategory)
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                
+                // 根据选择的分类显示工具网格
+                toolGridView(for: selectedCategory)
             }
-            .frame(width: 500, height: 620)
-            .focusable(false)
         }
+        .frame(width: 500, height: 620)
+        .focusable(false)
+    }
     
     private var headerView: some View {
         VStack(spacing: 12) {
