@@ -116,7 +116,7 @@ class GifAnimator {
 
 // MARK: - AppDelegate
 class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
-    
+    private var startupExecutorViewModel: StartupExecutorViewModel!
     private var statusItem: NSStatusItem!
     private var popover: NSPopover?
     private var catViewModel: CatViewModel!
@@ -161,7 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         
         // 初始化 ViewModel
         catViewModel = CatViewModel()
-        
+        startupExecutorViewModel = StartupExecutorViewModel()
         // 创建状态栏图标
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
@@ -193,7 +193,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         clipboardMonitor = ClipboardMonitor(persistenceController: PersistenceController.shared)
         clipboardMonitor?.startMonitoring()
         print("✅ 剪贴板监控已启动")
-        
+        // [新增] 执行启动命令
+        startupExecutorViewModel.startupExecutorExecuteEnabledCommands()
         // 设置全局事件监听器 - 监听鼠标点击和键盘事件
         setupEventMonitor()
     }

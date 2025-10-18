@@ -141,25 +141,28 @@ struct CatMenuView: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 
-                HStack(spacing: 8) {
+                HStack(spacing: 4) { // Spacing between name and coin display
                     //小喵
                     Text(viewModel.catName)
                         .font(.system(size: 16, weight: .semibold))
                     //金币
-                    HStack(spacing: 3) {
+                    HStack(spacing: 3) { // Spacing within coin display
                         if viewModel.isAlive {
                             Image(systemName: "dollarsign.circle.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: 10)) // Keep size 10 or 11
                                 .foregroundColor(.yellow)
-                            
-                            Text("\(Int(viewModel.coinBalance))/\(viewModel.maxCoinBalance)")
-                                .font(.system(size: 12, weight: .medium))
+
+                            // [修改] Further reduce font size and add minimumScaleFactor
+                            Text(String(format: "%.3f", viewModel.coinBalance))
+                                .font(.system(size: 10, weight: .medium)) // Changed from 11 to 10
                                 .foregroundColor(.secondary)
-                                .lineLimit(1) // 确保单行显示
-                            
-                            Text(String(format: "+%.2f/s", viewModel.coinGenerationRate))
-                                .font(.system(size: 10))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7) // Allow text to shrink
+
+                            Text(String(format: "+%.3f/s", viewModel.coinGenerationRate))
+                                .font(.system(size: 9)) // Also reduced rate font size slightly
                                 .foregroundColor(.secondary.opacity(0.7))
+                                .minimumScaleFactor(0.7) // Allow rate to shrink too
                         }
                     }
                 }
@@ -243,30 +246,99 @@ struct CatMenuView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
     }
-    
+
     // MARK: - Actions Section
     private var actionsSection: some View {
         HStack(spacing: 12) {
-            ActionButton(
-                icon: "gamecontroller.fill",
-                label: "陪玩",
-                color: .blue,
-                action: viewModel.play
-            )
-            
-            ActionButton(
-                icon: "fork.knife.circle.fill",
-                label: "喂食",
-                color: .orange,
-                action: viewModel.feed
-            )
-            
-            ActionButton(
-                icon: "sparkles",
-                label: "清洁",
-                color: .green,
-                action: viewModel.clean
-            )
+            // 玩具按钮
+            Button(action: viewModel.play) {
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.2))
+                            .frame(width: 52, height: 52)
+
+                        Image(systemName: "gamecontroller.fill") // 玩具图标
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.blue.gradient)
+                    }
+                     // 使用 HStack 组合标签
+                    HStack(spacing: 2) {
+                         Text("玩具 (\(Int(CatConfig.GamePlay.interactionCost))")
+                         Image(systemName: "dollarsign.circle.fill") // 金币图标
+                              .font(.system(size: 9))
+                              .foregroundColor(.yellow) // 设置为黄色
+                         Text(")")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .disabled(viewModel.coinBalance < CatConfig.GamePlay.interactionCost)
+            .opacity(viewModel.coinBalance < CatConfig.GamePlay.interactionCost ? 0.5 : 1.0)
+
+            // 猫粮按钮
+            Button(action: viewModel.feed) {
+                VStack(spacing: 8) {
+                    ZStack {
+                       Circle()
+                            .fill(Color.orange.opacity(0.2))
+                            .frame(width: 52, height: 52)
+
+                        Image(systemName: "fish.fill") // 猫粮图标
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.orange.gradient)
+                    }
+                    // 使用 HStack 组合标签
+                    HStack(spacing: 2) {
+                         Text("猫粮 (\(Int(CatConfig.GamePlay.interactionCost))")
+                         Image(systemName: "dollarsign.circle.fill") // 金币图标
+                              .font(.system(size: 9))
+                              .foregroundColor(.yellow) // 设置为黄色
+                         Text(")")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .disabled(viewModel.coinBalance < CatConfig.GamePlay.interactionCost)
+            .opacity(viewModel.coinBalance < CatConfig.GamePlay.interactionCost ? 0.5 : 1.0)
+
+            // 猫砂按钮
+            Button(action: viewModel.clean) {
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.2))
+                            .frame(width: 52, height: 52)
+
+                        Image(systemName: "tray.fill") // 猫砂图标
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.green.gradient)
+                    }
+                     // 使用 HStack 组合标签
+                    HStack(spacing: 2) {
+                         Text("猫砂 (\(Int(CatConfig.GamePlay.interactionCost))")
+                         Image(systemName: "dollarsign.circle.fill") // 金币图标
+                              .font(.system(size: 9))
+                              .foregroundColor(.yellow) // 设置为黄色
+                         Text(")")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .disabled(viewModel.coinBalance < CatConfig.GamePlay.interactionCost)
+            .opacity(viewModel.coinBalance < CatConfig.GamePlay.interactionCost ? 0.5 : 1.0)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -495,25 +567,13 @@ struct SettingsView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("启用AI日常推送")
                                         .font(.system(size: 13))
-                                    Text("每小时推送一条温馨消息")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.secondary)
                                 }
                             }
                             .toggleStyle(.switch)
-                            .onChange(of: aiPushEnabled) { newValue in
+                            // [修改] 添加 frame alignment
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .onChange(of: aiPushEnabled) { newValue in // Use modern onChange
                                 saveAIPushSetting(newValue)
-                            }
-                            
-                            Divider()
-                            
-                            HStack {
-                                Text("推送间隔")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text("\(Int(CatConfig.Notification.aiPushInterval / 60)) 分钟")
-                                    .font(.system(size: 13))
                             }
                         }
                         

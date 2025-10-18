@@ -85,14 +85,13 @@ struct CatConfig {
         // 死亡条件：至少1个属性为0
         static let deathThreshold: Int = 1
         
-        static let toolRewardMin: Int = 1
-        static let toolRewardMax: Int = 5
         static let toolRewardEnabled: Bool = true
-        
+        static let interactionCost: Double = 20.0
+        static let toolCoinRewardMin: Double = 3.0 // 奖励最少 3 金币
+        static let toolCoinRewardMax: Double = 8.0 // 奖励最多 8 金币
         //金币系统配置
         struct CoinSystem {
-            static let generationRatePerSecond: Double = 0.1 // 每秒生成0.1个金币
-            static let maxBalance: Int = 350 // 最大金币持有量
+            static let generationRatePerSecond: Double = 0.001 // 每秒生成0.1个金币
         }
     }
     

@@ -15,7 +15,6 @@ class CatViewModel: ObservableObject {
     
     //新增: 金币相关属性
     @Published var coinBalance: Double
-    @Published var maxCoinBalance: Int = CatConfig.GamePlay.CoinSystem.maxBalance
     @Published var coinGenerationRate: Double = CatConfig.GamePlay.CoinSystem.generationRatePerSecond
     
     
@@ -81,17 +80,16 @@ class CatViewModel: ObservableObject {
         setupSubscribers()
     }
     
-    // MARK: - Offline Coin Generation
-    // 计算离线金币收益
     private func applyOfflineCoinGeneration() {
         guard let lastUpdate = userDefaults.object(forKey: CatConfig.StorageKeys.lastCoinUpdateTime) as? Date else { return }
-        
+
         let timePassed = Date().timeIntervalSince(lastUpdate)
         let generatedCoins = timePassed * coinGenerationRate
-        
+
         if generatedCoins > 0 {
-            coinBalance = min(Double(maxCoinBalance), coinBalance + generatedCoins)
-            print("💰 离线 \(Int(timePassed)) 秒, 获得 \(generatedCoins) 金币, 当前余额: \(coinBalance)")
+            // [修改] 移除上限检查
+            coinBalance += generatedCoins
+            print("💰 离线 \(Int(timePassed)) 秒, 获得 \(String(format: "%.3f", generatedCoins)) 金币, 当前余额: \(String(format: "%.3f", coinBalance))")
         }
     }
     
@@ -251,9 +249,9 @@ class CatViewModel: ObservableObject {
     
     //金币增长逻辑
     @objc private func generateCoins() {
-        guard isAlive, coinBalance < Double(maxCoinBalance) else { return }
-        
-        coinBalance = min(Double(maxCoinBalance), coinBalance + coinGenerationRate)
+        // [修改] 移除上限检查
+        guard isAlive else { return }
+        coinBalance += coinGenerationRate
     }
     
     func reduceStats() {
@@ -286,28 +284,55 @@ class CatViewModel: ObservableObject {
         }
     }
     
-    // MARK: - User Actions
     func play() {
         guard isAlive else { return }
+        // [新增] 检查金币
+        guard coinBalance >= CatConfig.GamePlay.interactionCost else {
+            print("💰 金币不足，无法购买玩具！")
+            // 可选：添加用户提示，例如设置一个 @Published 变量来显示错误信息
+            return
+        }
+
         withAnimation(.spring(response: CatConfig.UI.springResponse, dampingFraction: CatConfig.UI.springDamping)) {
+            // [新增] 扣除金币
+            coinBalance -= CatConfig.GamePlay.interactionCost
             mood = min(100, mood + CatConfig.GamePlay.playIncrement)
             totalPlayCount += 1
+            print("🧸 购买玩具成功！心情 +\(Int(CatConfig.GamePlay.playIncrement))")
         }
     }
-    
+
     func feed() {
         guard isAlive else { return }
+        // [新增] 检查金币
+        guard coinBalance >= CatConfig.GamePlay.interactionCost else {
+            print("💰 金币不足，无法购买猫粮！")
+            return
+        }
+
         withAnimation(.spring(response: CatConfig.UI.springResponse, dampingFraction: CatConfig.UI.springDamping)) {
+            // [新增] 扣除金币
+            coinBalance -= CatConfig.GamePlay.interactionCost
             hunger = min(100, hunger + CatConfig.GamePlay.feedIncrement)
             totalFeedCount += 1
+            print("🍖 购买猫粮成功！饥饿 +\(Int(CatConfig.GamePlay.feedIncrement))")
         }
     }
-    
+
     func clean() {
         guard isAlive else { return }
+        // [新增] 检查金币
+        guard coinBalance >= CatConfig.GamePlay.interactionCost else {
+            print("💰 金币不足，无法购买猫砂！")
+            return
+        }
+
         withAnimation(.spring(response: CatConfig.UI.springResponse, dampingFraction: CatConfig.UI.springDamping)) {
+            // [新增] 扣除金币
+            coinBalance -= CatConfig.GamePlay.interactionCost
             cleanliness = min(100, cleanliness + CatConfig.GamePlay.cleanIncrement)
             totalCleanCount += 1
+            print("🧼 购买猫砂成功！清洁 +\(Int(CatConfig.GamePlay.cleanIncrement))")
         }
     }
     
@@ -339,32 +364,16 @@ class CatViewModel: ObservableObject {
     
     // ⭐ 新增: 工具奖励方法
     func rewardForToolUsage() {
-        guard isAlive else {
-            print("❌ 小猫已死亡，无法获得奖励")
-            return
-        }
+        guard isAlive, CatConfig.GamePlay.toolRewardEnabled else { // [修改] 检查 toolRewardEnabled 开关
+                print("❌ 奖励未启用或小猫已死亡，无法获得奖励")
+                return
+            }
         
-        let rewardValue = Int.random(in: CatConfig.GamePlay.toolRewardMin...CatConfig.GamePlay.toolRewardMax)
-        let doubleValue = Double(rewardValue)
-        let randomChoice = Int.random(in: 0...2)
-        
-        let attributeName: String
-        
-        switch randomChoice {
-        case 0:
-            mood = min(100, mood + doubleValue)
-            attributeName = "心情"
-        case 1:
-            hunger = min(100, hunger + doubleValue)
-            attributeName = "饥饿度"
-        case 2:
-            cleanliness = min(100, cleanliness + doubleValue)
-            attributeName = "清洁度"
-        default:
-            attributeName = "未知"
-        }
+        let rewardValue = Double.random(in: CatConfig.GamePlay.toolCoinRewardMin...CatConfig.GamePlay.toolCoinRewardMax)
+        // [修改] 直接增加金币余额
+        coinBalance += rewardValue
         
         saveData()
-        print("🎉🎉🎉 工具奖励: \(attributeName) +\(rewardValue) 🎉🎉🎉")
+        print("🎉🎉🎉 工具奖励: 金币 +\(String(format: "%.3f", rewardValue)) 🎉🎉🎉")
     }
 }

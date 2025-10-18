@@ -23,7 +23,7 @@ struct AppTool: Identifiable, Codable, Equatable {
              ocr, passwordManager, morse, imageTools,iconGenerator,chmod,jwtDebugger,cronParser,
              regexTester,uuidGenerator,portScanner,hosts,urlParser,pdfExtractor,colorPicker,antiSleep,
              networkSpeedTest,scratchpad,dateCalculator,systemMonitor,worldClock,ballSortGame,matchGame,
-             textProcessor,pdfToImage,qrCode,fileHashCalculator,watermarkTool
+             textProcessor,pdfToImage,qrCode,fileHashCalculator,watermarkTool,startupExecutor
     }
     
     // Codable 支持 Color
@@ -106,6 +106,7 @@ class ToolsManager {
         AppTool(id: "portscan", name: "端口扫描", icon: "shippingbox.and.arrow.backward.fill", color: .indigo, type: .portScanner, description: "扫描指定主机的常见端口", category: .development),
         AppTool(id: "regex", name: "正则表达式", icon: "text.magnifyingglass", color: .orange, type: .regexTester, description: "在线测试和调试正则表达式", category: .development),
         AppTool(id: "iconGenerator", name: "App Icon生成器", icon: "app.dashed", color: .teal, type: .iconGenerator, description: "为Apple平台生成应用图标集", category: .development),
+        AppTool(id: "startupExecutor", name: "启动执行", icon: "play.display", color: .blue, type: .startupExecutor, description: "应用启动时自动执行命令", category: .development),
         AppTool(id: "jwt", name: "JWT 解码器", icon: "key.viewfinder", color: .red, type: .jwtDebugger, description: "解码和验证JWT (JSON Web Token)", category: .development),
         AppTool(id: "cron", name: "Cron 解析器", icon: "timer.square", color: .cyan, type: .cronParser, description: "解析Cron表达式的执行时间", category: .development),
         
@@ -179,6 +180,9 @@ class ToolsManager {
             case .scratchpad:
                 view = AnyView(ScratchpadView())
                 size = NSSize(width: 350, height: 400)
+            case .startupExecutor:
+                view = AnyView(StartupExecutorView())
+                size = NSSize(width: 550, height: 450)
             case .calculator:
                 view = AnyView(CalculatorView())
                 size = NSSize(width: 420, height: 560)
